@@ -64,7 +64,7 @@ async function generateEpub(repoName, author, chapters) {
     '-o', epubFileName,
   ];
 
-  const chapterContents = chapters.map((chapter) => chapter.content).join('\n');
+  const chapterContents = chapters.map((chapter) => `<h1>${chapter.title}</h1>${chapter.content}`).join('\n');
   const tempFilePath = path.join(__dirname, uuidv4());
   fs.writeFileSync(tempFilePath, chapterContents);
   pandocArgs.push(tempFilePath);
@@ -94,13 +94,14 @@ async function main() {
   const chapters = [];
   const codeExtensions = ['.js', '.ts', '.py', '.jsx', '.tsx', '.rs', '.md'];
 
-  function processFiles(dir) {
+  function processFiles(dir, parentPath = '') {
     const files = fs.readdirSync(dir);
     files.forEach((file) => {
       const filePath = path.join(dir, file);
+      const relativePath = path.join(parentPath, file);
       const stats = fs.statSync(filePath);
       if (stats.isDirectory()) {
-        processFiles(filePath);
+        processFiles(filePath, relativePath);
       } else if (codeExtensions.includes(path.extname(file))) {
         const content = fs.readFileSync(filePath, 'utf-8');
         const language = path.extname(file).slice(1);
