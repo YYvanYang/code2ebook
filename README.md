@@ -39,7 +39,9 @@ npm install
 1. Create a `.env` file in the project root directory.
 
 2. Add the following line to the `.env` file, replacing `<repository-url>` with the URL of the GitHub repository you want to convert:
+```bash
 REPO_URL=<repository-url>
+```
 
 ## Usage
 
