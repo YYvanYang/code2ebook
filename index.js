@@ -45,7 +45,7 @@ function processFilesImproved(
   dir,
   chapters,
   fullRepoDir,
-  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs", ".md"],
+  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"],
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
@@ -57,7 +57,7 @@ function processFilesImproved(
       const content = fs.readFileSync(filePath, "utf-8");
       const extension = path.extname(file);
       let chapterContent;
-      if (extension === ".md" || codeExtensions.includes(extension)) {
+      if (codeExtensions.includes(extension)) {
         const language = extension.slice(1);
         chapterContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
@@ -130,7 +130,7 @@ async function main() {
 
   // 遍历目录并处理文件
   const chapters = [];
-  const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs", ".md"];
+  const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
 
   processFilesImproved(fullRepoDir, chapters, fullRepoDir, codeExtensions);
 
