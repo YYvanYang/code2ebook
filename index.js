@@ -3,7 +3,6 @@ const path = require("path");
 const { execSync } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
 const dotenv = require("dotenv");
-const highlight = require("highlight.js");
 
 // 加载环境变量
 dotenv.config();
@@ -33,12 +32,6 @@ function extractRepoDetails(repoUrl) {
   const repoName = parts[parts.length - 1].replace(".git", "");
   const author = parts.length > 1 ? parts[parts.length - 2] : "Unknown Author";
   return { repoName, author };
-}
-
-// 对代码进行语法高亮
-function highlightCode(code, language) {
-  const highlightedCode = highlight.highlight(code, { language }).value;
-  return `<pre><code class="hljs ${language}">${highlightedCode}</code></pre>`;
 }
 
 // 转换代码为Markdown格式
