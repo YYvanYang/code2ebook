@@ -81,9 +81,10 @@ function processFilesImproved(
   });
 }
 
-async function generateEpub(repoName, author, chapters) {
+async function generateEpubAndPdf(repoName, author, chapters) {
   const timestamp = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
   const epubFileName = `${repoName}_${timestamp}.epub`;
+  const pdfFileName = `${repoName}_${timestamp}.pdf`;
   const metadata = {
     title: repoName,
     author: author,
@@ -92,7 +93,7 @@ async function generateEpub(repoName, author, chapters) {
 
   // 设置Pandoc的参数
   // prettier-ignore
-  const pandocArgs = [
+  const pandocEpubArgs = [
     "-f", "markdown",
     "-t", "epub",
     "--metadata", `title=${metadata.title}`,
@@ -101,39 +102,76 @@ async function generateEpub(repoName, author, chapters) {
     "--toc",
     "--toc-depth", "2",
     "-o", epubFileName,
-    "--file-scope", // 每个文件生成一个章节
   ];
 
-  // 使用spawn启动Pandoc进程
-  const pandocProcess = spawn("pandoc", pandocArgs);
+  // prettier-ignore
+  const pandocPdfArgs = [
+    "-f", "markdown",
+    "-t", "pdf",
+    "--metadata", `title=${metadata.title}`,
+    "--metadata", `author=${metadata.author}`,
+    "--pdf-engine", "xelatex",
+    "-V", "mainfont='DejaVu Serif'",
+    "-V", "monofont='DejaVu Sans Mono'",
+    "-V", "papersize=a4",
+    "-V", "geometry:margin=2cm",
+    "--toc",
+    "--toc-depth", "2", 
+    "-o", pdfFileName,
+  ];
 
-  pandocProcess.stdin.setDefaultEncoding("utf-8");
+  // 使用spawn启动Pandoc进程生成EPUB
+  const pandocEpubProcess = spawn("pandoc", pandocEpubArgs);
+  pandocEpubProcess.stdin.setDefaultEncoding("utf-8");
 
   // 将每个章节的内容写入Pandoc的stdin
+  // TODO: 拆分章节到多个临时文件，保证epub不会从一个大文件中生成
   chapters.forEach((chapter) => {
-    pandocProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
+    pandocEpubProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
   });
+  pandocEpubProcess.stdin.end();
 
-  // 结束输入
-  pandocProcess.stdin.end();
-
-  // 处理输出和错误
-  pandocProcess.stdout.on("data", (data) => {
+  // 处理EPUB生成的输出和错误
+  pandocEpubProcess.stdout.on("data", (data) => {
     console.log(`stdout: ${data}`);
   });
-
-  pandocProcess.stderr.on("data", (data) => {
+  pandocEpubProcess.stderr.on("data", (data) => {
     console.error(`stderr: ${data}`);
   });
-
-  // 当Pandoc进程关闭时，检查是否成功生成EPUB文件
-  pandocProcess.on("close", (code) => {
+  pandocEpubProcess.on("close", (code) => {
     if (code === 0) {
       const epubFilePath = path.join(process.cwd(), epubFileName);
       console.log(`生成的EPUB: ${epubFileName}`);
       console.log(`EPUB文件路径: ${epubFilePath}`);
     } else {
-      console.error(`Pandoc进程退出，代码 ${code}`);
+      console.error(`Pandoc EPUB进程退出，代码 ${code}`);
+    }
+  });
+
+  // 使用spawn启动Pandoc进程生成PDF
+  const pandocPdfProcess = spawn("pandoc", pandocPdfArgs);
+  pandocPdfProcess.stdin.setDefaultEncoding("utf-8");
+
+  // 将每个章节的内容写入Pandoc的stdin  
+  chapters.forEach((chapter) => {
+    pandocPdfProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
+  });
+  pandocPdfProcess.stdin.end();
+
+  // 处理PDF生成的输出和错误
+  pandocPdfProcess.stdout.on("data", (data) => {
+    console.log(`stdout: ${data}`);
+  });
+  pandocPdfProcess.stderr.on("data", (data) => {
+    console.error(`stderr: ${data}`); 
+  });
+  pandocPdfProcess.on("close", (code) => {
+    if (code === 0) {
+      const pdfFilePath = path.join(process.cwd(), pdfFileName);
+      console.log(`生成的PDF: ${pdfFileName}`);
+      console.log(`PDF文件路径: ${pdfFilePath}`);
+    } else {
+      console.error(`Pandoc PDF进程退出，代码 ${code}`);
     }
   });
 }
@@ -148,7 +186,7 @@ async function main() {
   const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
 
   processFilesImproved(fullRepoDir, chapters, fullRepoDir, codeExtensions);
-  await generateEpub(repoName, author, chapters);
+  await generateEpubAndPdf(repoName, author, chapters);
 }
 
 main();
