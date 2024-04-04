@@ -101,6 +101,7 @@ async function generateEpub(repoName, author, chapters) {
     "--toc",
     "--toc-depth", "2",
     "-o", epubFileName,
+    "--file-scope", // 每个文件生成一个章节
   ];
 
   // 使用spawn启动Pandoc进程
