@@ -39,11 +39,14 @@ function extractRepoDetails(repoUrl) {
 }
 
 function codeToMarkdown(content, language) {
-  if (typeof language !== 'string' || !language.trim()) {
-    language = '';
+  if (typeof language !== "string" || !language.trim()) {
+    language = "";
   }
-  const maxBackticks = (content.match(/`+/g) || []).reduce((max, curr) => Math.max(max, curr.length), 0);
-  const backtickSequence = '`'.repeat(Math.max(3, maxBackticks + 1));
+  const maxBackticks = (content.match(/`+/g) || []).reduce(
+    (max, curr) => Math.max(max, curr.length),
+    0
+  );
+  const backtickSequence = "`".repeat(Math.max(3, maxBackticks + 1));
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
@@ -51,7 +54,7 @@ function processFilesImproved(
   dir,
   chapters,
   fullRepoDir,
-  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"],
+  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"]
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
@@ -88,6 +91,7 @@ async function generateEpub(repoName, author, chapters) {
   };
 
   // 设置Pandoc的参数
+  // prettier-ignore
   const pandocArgs = [
     "-f", "markdown",
     "-t", "epub",
@@ -100,12 +104,12 @@ async function generateEpub(repoName, author, chapters) {
   ];
 
   // 使用spawn启动Pandoc进程
-  const pandocProcess = spawn('pandoc', pandocArgs);
+  const pandocProcess = spawn("pandoc", pandocArgs);
 
-  pandocProcess.stdin.setDefaultEncoding('utf-8');
+  pandocProcess.stdin.setDefaultEncoding("utf-8");
 
   // 将每个章节的内容写入Pandoc的stdin
-  chapters.forEach(chapter => {
+  chapters.forEach((chapter) => {
     pandocProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
   });
 
@@ -113,16 +117,16 @@ async function generateEpub(repoName, author, chapters) {
   pandocProcess.stdin.end();
 
   // 处理输出和错误
-  pandocProcess.stdout.on('data', (data) => {
+  pandocProcess.stdout.on("data", (data) => {
     console.log(`stdout: ${data}`);
   });
 
-  pandocProcess.stderr.on('data', (data) => {
+  pandocProcess.stderr.on("data", (data) => {
     console.error(`stderr: ${data}`);
   });
 
   // 当Pandoc进程关闭时，检查是否成功生成EPUB文件
-  pandocProcess.on('close', (code) => {
+  pandocProcess.on("close", (code) => {
     if (code === 0) {
       const epubFilePath = path.join(process.cwd(), epubFileName);
       console.log(`生成的EPUB: ${epubFileName}`);
