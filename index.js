@@ -44,8 +44,18 @@ function extractRepoDetails(repoUrl) {
 
 // 转换代码为Markdown格式
 function codeToMarkdown(content, language) {
-  // 直接使用Markdown的代码块语法
-  return `\`\`\`${language}\n${content}\n\`\`\``;
+  // 验证语言字符串是否有效，若无效则设置为空字符串
+  if (typeof language !== 'string' || !language.trim()) {
+    language = '';
+  }
+
+  // 查找内容中连续反引号的最大长度
+  const maxBackticks = (content.match(/`+/g) || []).reduce((max, curr) => Math.max(max, curr.length), 0);
+  // 根据最大长度决定外围反引号的数量，至少为3，并且比内容中最长的序列多1
+  const backtickSequence = '`'.repeat(Math.max(3, maxBackticks + 1));
+
+  // 使用Markdown的代码块语法，并应用处理后的内容和语言
+  return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
 // 改进后的文件处理函数
