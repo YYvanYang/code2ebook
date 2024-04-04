@@ -15,12 +15,20 @@ function ensureRepoDirExists() {
   }
 }
 
+function removeDirectory(directory) {
+  if (process.platform === "win32") {
+    fs.rmdirSync(directory, { recursive: true });
+  } else {
+    execSync(`rm -rf ${directory}`);
+  }
+}
+
 // 克隆GitHub仓库
 function cloneGitHubRepo(repoUrl, localDir) {
   ensureRepoDirExists();
   const fullPath = path.join("repo", localDir);
   if (fs.existsSync(fullPath)) {
-    execSync(`rm -rf ${fullPath}`);
+    removeDirectory(fullPath);
   }
   execSync(`git clone ${repoUrl} ${fullPath}`);
   return fullPath;
