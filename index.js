@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
-const { v4: uuidv4 } = require("uuid");
+const { execSync, spawn } = require("child_process");
 const dotenv = require("dotenv");
 
 // 加载环境变量
@@ -88,45 +87,50 @@ async function generateEpub(repoName, author, chapters) {
     language: "en",
   };
 
+  // 设置Pandoc的参数
   const pandocArgs = [
-    "-f",
-    "markdown",
-    "-t",
-    "epub",
-    "--metadata",
-    `title=${metadata.title}`,
-    "--metadata",
-    `author=${metadata.author}`,
-    "--metadata",
-    `language=${metadata.language}`,
+    "-f", "markdown",
+    "-t", "epub",
+    "--metadata", `title=${metadata.title}`,
+    "--metadata", `author=${metadata.author}`,
+    "--metadata", `language=${metadata.language}`,
     "--toc",
-    "--toc-depth",
-    "2",
-    "-o",
-    epubFileName,
+    "--toc-depth", "2",
+    "-o", epubFileName,
   ];
 
-  // 创建临时目录用于存放单独的章节文件
-  const tempDirPath = path.join(__dirname, uuidv4());
-  fs.mkdirSync(tempDirPath);
+  // 使用spawn启动Pandoc进程
+  const pandocProcess = spawn('pandoc', pandocArgs);
 
-  chapters.forEach((chapter, index) => {
-    const tempFilePath = path.join(tempDirPath, `chapter${index}.md`);
-    fs.writeFileSync(tempFilePath, `# ${chapter.title}\n${chapter.content}`);
-    pandocArgs.push(tempFilePath);
+  pandocProcess.stdin.setDefaultEncoding('utf-8');
+
+  // 将每个章节的内容写入Pandoc的stdin
+  chapters.forEach(chapter => {
+    pandocProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
   });
 
-  try {
-    execSync(`pandoc ${pandocArgs.join(" ")}`);
-    const epubFilePath = path.join(process.cwd(), epubFileName);
-    console.log(`Generated EPUB: ${epubFileName}`);
-    console.log(`EPUB file path: ${epubFilePath}`);
-  } catch (error) {
-    console.error("Error generating EPUB:", error);
-  } finally {
-    // 清理临时目录
-    fs.rmSync(tempDirPath, { recursive: true, force: true });
-  }
+  // 结束输入
+  pandocProcess.stdin.end();
+
+  // 处理输出和错误
+  pandocProcess.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+  });
+
+  pandocProcess.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  // 当Pandoc进程关闭时，检查是否成功生成EPUB文件
+  pandocProcess.on('close', (code) => {
+    if (code === 0) {
+      const epubFilePath = path.join(process.cwd(), epubFileName);
+      console.log(`生成的EPUB: ${epubFileName}`);
+      console.log(`EPUB文件路径: ${epubFilePath}`);
+    } else {
+      console.error(`Pandoc进程退出，代码 ${code}`);
+    }
+  });
 }
 
 async function main() {
