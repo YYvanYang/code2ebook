@@ -17,7 +17,7 @@ function ensureRepoDirExists() {
 
 function removeDirectory(directory) {
   if (process.platform === "win32") {
-    fs.rmdirSync(directory, { recursive: true });
+    fs.rmSync(directory, { recursive: true });
   } else {
     execSync(`rm -rf ${directory}`);
   }
@@ -65,7 +65,7 @@ function processFilesImproved(
       const content = fs.readFileSync(filePath, "utf-8");
       const extension = path.extname(file);
       let chapterContent;
-      if (codeExtensions.includes(extension)) {
+      if (codeExtensions.includes(extension) || extension === ".md") {
         const language = extension.slice(1);
         chapterContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
