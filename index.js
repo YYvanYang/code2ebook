@@ -1,13 +1,11 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
-const { v4: uuidv4 } = require("uuid");
+const { execSync, spawn } = require("child_process");
 const dotenv = require("dotenv");
 
 // 加载环境变量
 dotenv.config();
 
-// 确保存在'repo'目录
 function ensureRepoDirExists() {
   const repoDir = "repo";
   if (!fs.existsSync(repoDir)) {
@@ -23,7 +21,6 @@ function removeDirectory(directory) {
   }
 }
 
-// 克隆GitHub仓库
 function cloneGitHubRepo(repoUrl, localDir) {
   ensureRepoDirExists();
   const fullPath = path.join("repo", localDir);
@@ -34,7 +31,6 @@ function cloneGitHubRepo(repoUrl, localDir) {
   return fullPath;
 }
 
-// 从URL提取仓库名称和作者
 function extractRepoDetails(repoUrl) {
   const parts = repoUrl.split("/");
   const repoName = parts[parts.length - 1].replace(".git", "");
@@ -42,28 +38,23 @@ function extractRepoDetails(repoUrl) {
   return { repoName, author };
 }
 
-// 转换代码为Markdown格式
 function codeToMarkdown(content, language) {
-  // 验证语言字符串是否有效，若无效则设置为空字符串
-  if (typeof language !== 'string' || !language.trim()) {
-    language = '';
+  if (typeof language !== "string" || !language.trim()) {
+    language = "";
   }
-
-  // 查找内容中连续反引号的最大长度
-  const maxBackticks = (content.match(/`+/g) || []).reduce((max, curr) => Math.max(max, curr.length), 0);
-  // 根据最大长度决定外围反引号的数量，至少为3，并且比内容中最长的序列多1
-  const backtickSequence = '`'.repeat(Math.max(3, maxBackticks + 1));
-
-  // 使用Markdown的代码块语法，并应用处理后的内容和语言
+  const maxBackticks = (content.match(/`+/g) || []).reduce(
+    (max, curr) => Math.max(max, curr.length),
+    0
+  );
+  const backtickSequence = "`".repeat(Math.max(3, maxBackticks + 1));
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
-// 改进后的文件处理函数
 function processFilesImproved(
   dir,
   chapters,
   fullRepoDir,
-  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"],
+  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"]
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
@@ -90,7 +81,6 @@ function processFilesImproved(
   });
 }
 
-// 调用Pandoc生成EPUB文件
 async function generateEpub(repoName, author, chapters) {
   const timestamp = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
   const epubFileName = `${repoName}_${timestamp}.epub`;
@@ -100,59 +90,63 @@ async function generateEpub(repoName, author, chapters) {
     language: "en",
   };
 
+  // 设置Pandoc的参数
+  // prettier-ignore
   const pandocArgs = [
-    "-f",
-    "markdown",
-    "-t",
-    "epub",
-    "--metadata",
-    `title=${metadata.title}`,
-    "--metadata",
-    `author=${metadata.author}`,
-    "--metadata",
-    `language=${metadata.language}`,
+    "-f", "markdown",
+    "-t", "epub",
+    "--metadata", `title=${metadata.title}`,
+    "--metadata", `author=${metadata.author}`,
+    "--metadata", `language=${metadata.language}`,
     "--toc",
-    "--toc-depth",
-    "2",
-    "-o",
-    epubFileName,
+    "--toc-depth", "2",
+    "-o", epubFileName,
   ];
 
-  const chapterContents = chapters
-    .map((chapter) => `# ${chapter.title}\n${chapter.content}`)
-    .join("\n\n");
-  const tempFilePath = path.join(__dirname, uuidv4());
-  fs.writeFileSync(tempFilePath, chapterContents);
-  pandocArgs.push(tempFilePath);
+  // 使用spawn启动Pandoc进程
+  const pandocProcess = spawn("pandoc", pandocArgs);
 
-  try {
-    execSync(`pandoc ${pandocArgs.join(" ")}`);
-    const epubFilePath = path.join(process.cwd(), epubFileName);
-    console.log(`Generated EPUB: ${epubFileName}`);
-    console.log(`EPUB file path: ${epubFilePath}`);
-  } catch (error) {
-    console.error("Error generating EPUB:", error);
-  } finally {
-    fs.unlinkSync(tempFilePath);
-  }
+  pandocProcess.stdin.setDefaultEncoding("utf-8");
+
+  // 将每个章节的内容写入Pandoc的stdin
+  chapters.forEach((chapter) => {
+    pandocProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
+  });
+
+  // 结束输入
+  pandocProcess.stdin.end();
+
+  // 处理输出和错误
+  pandocProcess.stdout.on("data", (data) => {
+    console.log(`stdout: ${data}`);
+  });
+
+  pandocProcess.stderr.on("data", (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  // 当Pandoc进程关闭时，检查是否成功生成EPUB文件
+  pandocProcess.on("close", (code) => {
+    if (code === 0) {
+      const epubFilePath = path.join(process.cwd(), epubFileName);
+      console.log(`生成的EPUB: ${epubFileName}`);
+      console.log(`EPUB文件路径: ${epubFilePath}`);
+    } else {
+      console.error(`Pandoc进程退出，代码 ${code}`);
+    }
+  });
 }
 
-// 主函数
 async function main() {
   const repoUrl = process.env.REPO_URL;
   const { repoName, author } = extractRepoDetails(repoUrl);
   const localDir = repoName;
 
-  // 克隆GitHub仓库
   const fullRepoDir = cloneGitHubRepo(repoUrl, localDir);
-
-  // 遍历目录并处理文件
   const chapters = [];
   const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
 
   processFilesImproved(fullRepoDir, chapters, fullRepoDir, codeExtensions);
-
-  // 生成EPUB文件
   await generateEpub(repoName, author, chapters);
 }
 
