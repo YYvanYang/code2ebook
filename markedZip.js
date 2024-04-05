@@ -130,7 +130,7 @@ async function createEpubFromMarkdown(
   for (const file of markdownFiles) {
     const htmlFilename = path.basename(file, ".md") + ".html";
     await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
-    const content = fs.readFileSync(htmlFilename, "utf-8");
+    const content = fs.readFileSync(`OEBPS/${htmlFilename}`, "utf-8");
     zip.file(htmlFilename, content);
     htmlFiles.push(htmlFilename);
   }
@@ -157,8 +157,8 @@ const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
 const epubOutputPath = "output.epub"; // 输出EPUB路径
 const metadata = { title: "我的电子书标题", author: "作者名" }; // 电子书元数据
 const titles = ["第一章 标题", "第二章 标题"]; // 章节标题
-const coverImagePath = "path/to/cover.jpg"; // 封面图片路径
-const resourcePaths = ["path/to/image1.png", "path/to/image2.jpg"]; // 资源文件路径
+const coverImagePath = "cover.jpg"; // 封面图片路径
+const resourcePaths = []; // 资源文件路径
 
 createEpubFromMarkdown(
   markdownFiles,
