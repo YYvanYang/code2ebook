@@ -1,2 +1,2 @@
 Validating a packaged EPUB
-java -jar epubcheck.jar file.epub
+java -jar epubcheck/epubcheck.jar output.epub

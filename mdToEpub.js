@@ -312,15 +312,33 @@ async function createEpub(
     .then((content) => {
       fs.writeFileSync(epubPath, content);
       console.log(`EPUB创建成功: ${epubPath}`);
+      console.log("开始校验EPUB...");
+      return validateEpub(epubPath);
     })
     .catch((error) => {
       console.error("EPUB创建失败:", error);
     });
 }
 
+async function validateEpub(epubPath) {
+  try {
+    const { stdout, stderr } = await execAsync(
+      `java -jar epubcheck/epubcheck.jar "${epubPath}"`
+    );
+    console.log("EPUBCheck 校验结果:");
+    console.log(stdout);
+    if (stderr) {
+      console.error("EPUBCheck 错误:");
+      console.error(stderr);
+    }
+  } catch (error) {
+    console.error("EPUBCheck 执行失败:", error);
+  }
+}
+
 // 示例用法
 const markdownDir = "markdown/rolldown"; // 替换为实际的Markdown文件夹路径
-const epubPath = "epubcheck/output.epub";
+const epubPath = "output.epub";
 const metadata = {
   title: "电子书标题",
   author: "作者",
