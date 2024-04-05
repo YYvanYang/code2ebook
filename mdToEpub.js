@@ -202,25 +202,34 @@ function initializeEpubStructure(zip) {
 
 async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
   const files = fs.readdirSync(markdownDir);
+  let totalFiles = files.length;
+  let processedFiles = 0;
+
   for (const file of files) {
     const filePath = path.join(markdownDir, file);
     const stats = fs.statSync(filePath);
     if (stats.isDirectory()) {
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
+      console.log(`创建子目录: ${subDir}`);
       await processMarkdownFiles(filePath, subDir, htmlFiles, titles);
     } else if (path.extname(file) === ".md") {
       const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
       const htmlFilePath = path.join(epubDir, htmlFilename);
+      console.log(`转换Markdown文件: ${filePath}`);
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
       const filePathInEpub = path.relative(epubDir, htmlFilePath);
       htmlFiles.push(filePathInEpub);
       titles.push(path.basename(file, ".md"));
+      processedFiles++;
+      console.log(`转换进度: ${processedFiles}/${totalFiles}`);
     }
-  };
+  }
 }
 
 async function createEpub(markdownDir, epubPath, metadata) {
+  console.log("开始创建EPUB...");
+
   const zip = new JSZip();
   initializeEpubStructure(zip);
 
@@ -228,20 +237,26 @@ async function createEpub(markdownDir, epubPath, metadata) {
   const titles = [];
 
   const epubDir = "OEBPS";
+  console.log(`创建EPUB目录: ${epubDir}`);
   await ensureDirExists(epubDir);
+
+  console.log("处理Markdown文件...");
   await processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles);
 
+  console.log("生成content.opf...");
   const uuid = uuidv4();
-
   const contentOpf = generateContentOpf(metadata, htmlFiles, uuid);
   zip.file("OEBPS/content.opf", contentOpf);
 
+  console.log("生成toc.xhtml...");
   const tocXhtml = generateTocXhtml(htmlFiles, titles);
   zip.file("OEBPS/toc.xhtml", tocXhtml);
 
+  console.log("生成toc.ncx...");
   const tocNcx = generateTocNcx(htmlFiles, titles, uuid);
   zip.file("OEBPS/toc.ncx", tocNcx);
 
+  console.log("生成EPUB文件...");
   zip
     .generateAsync({ type: "nodebuffer" })
     .then((content) => {
@@ -314,7 +329,6 @@ async function createEpubFromMarkdown(
     })
     .catch((error) => console.error("Failed to generate EPUB:", error));
 }
-
 
 // // 示例用法
 // const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
