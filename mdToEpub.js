@@ -200,6 +200,69 @@ function initializeEpubStructure(zip) {
   );
 }
 
+async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
+  const files = fs.readdirSync(markdownDir);
+  for (const file of files) {
+    const filePath = path.join(markdownDir, file);
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      const subDir = path.join(epubDir, file);
+      fs.mkdirSync(subDir, { recursive: true });
+      await processMarkdownFiles(filePath, subDir, htmlFiles, titles);
+    } else if (path.extname(file) === ".md") {
+      const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
+      const htmlFilePath = path.join(epubDir, htmlFilename);
+      await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
+      const filePathInEpub = path.relative(epubDir, htmlFilePath);
+      htmlFiles.push(filePathInEpub);
+      titles.push(path.basename(file, ".md"));
+    }
+  };
+}
+
+async function createEpub(markdownDir, epubPath, metadata) {
+  const zip = new JSZip();
+  initializeEpubStructure(zip);
+
+  const htmlFiles = [];
+  const titles = [];
+
+  const epubDir = "OEBPS";
+  await ensureDirExists(epubDir);
+  await processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles);
+
+  const uuid = uuidv4();
+
+  const contentOpf = generateContentOpf(metadata, htmlFiles, uuid);
+  zip.file("OEBPS/content.opf", contentOpf);
+
+  const tocXhtml = generateTocXhtml(htmlFiles, titles);
+  zip.file("OEBPS/toc.xhtml", tocXhtml);
+
+  const tocNcx = generateTocNcx(htmlFiles, titles, uuid);
+  zip.file("OEBPS/toc.ncx", tocNcx);
+
+  zip
+    .generateAsync({ type: "nodebuffer" })
+    .then((content) => {
+      fs.writeFileSync(epubPath, content);
+      console.log(`EPUB创建成功: ${epubPath}`);
+    })
+    .catch((error) => {
+      console.error("EPUB创建失败:", error);
+    });
+}
+
+// 示例用法
+const markdownDir = "markdown/rolldown"; // 替换为实际的Markdown文件夹路径
+const epubPath = "epubcheck/output.epub";
+const metadata = {
+  title: "电子书标题",
+  author: "作者",
+};
+
+createEpub(markdownDir, epubPath, metadata);
+
 async function createEpubFromMarkdown(
   markdownFiles,
   epubOutputPath,
@@ -252,19 +315,20 @@ async function createEpubFromMarkdown(
     .catch((error) => console.error("Failed to generate EPUB:", error));
 }
 
-// 示例用法
-const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
-const epubOutputPath = "epubcheck-5.1.0/output.epub"; // 输出EPUB路径
-const metadata = { title: "我的电子书标题", author: "作者名" }; // 电子书元数据
-const titles = ["第一章 标题", "第二章 标题"]; // 章节标题
-const coverImagePath = "cover.jpg"; // 封面图片路径
-const resourcePaths = []; // 资源文件路径
 
-createEpubFromMarkdown(
-  markdownFiles,
-  epubOutputPath,
-  metadata,
-  titles,
-  coverImagePath,
-  resourcePaths
-).catch(console.error);
+// // 示例用法
+// const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
+// const epubOutputPath = "epubcheck-5.1.0/output.epub"; // 输出EPUB路径
+// const metadata = { title: "我的电子书标题", author: "作者名" }; // 电子书元数据
+// const titles = ["第一章 标题", "第二章 标题"]; // 章节标题
+// const coverImagePath = "cover.jpg"; // 封面图片路径
+// const resourcePaths = []; // 资源文件路径
+
+// createEpubFromMarkdown(
+//   markdownFiles,
+//   epubOutputPath,
+//   metadata,
+//   titles,
+//   coverImagePath,
+//   resourcePaths
+// ).catch(console.error);
