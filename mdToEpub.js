@@ -200,11 +200,29 @@ function initializeEpubStructure(zip) {
   );
 }
 
-async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
-  const files = fs.readdirSync(markdownDir);
-  let totalFiles = files.length;
-  let processedFiles = 0;
+function countMarkdownFiles(directory) {
+  let count = 0;
+  const files = fs.readdirSync(directory);
+  for (const file of files) {
+    const filePath = path.join(directory, file);
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      count += countMarkdownFiles(filePath);
+    } else if (path.extname(file) === ".md") {
+      count++;
+    }
+  }
+  return count;
+}
 
+async function processMarkdownFiles(
+  markdownDir,
+  epubDir,
+  htmlFiles,
+  titles,
+  processedFiles
+) {
+  const files = fs.readdirSync(markdownDir);
   for (const file of files) {
     const filePath = path.join(markdownDir, file);
     const stats = fs.statSync(filePath);
@@ -212,7 +230,13 @@ async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
       console.log(`创建子目录: ${subDir}`);
-      await processMarkdownFiles(filePath, subDir, htmlFiles, titles);
+      await processMarkdownFiles(
+        filePath,
+        subDir,
+        htmlFiles,
+        titles,
+        processedFiles
+      );
     } else if (path.extname(file) === ".md") {
       const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
       const htmlFilePath = path.join(epubDir, htmlFilename);
@@ -221,8 +245,14 @@ async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
       const filePathInEpub = path.relative(epubDir, htmlFilePath);
       htmlFiles.push(filePathInEpub);
       titles.push(path.basename(file, ".md"));
-      processedFiles++;
-      console.log(`转换进度: ${processedFiles}/${totalFiles}`);
+      processedFiles.count++;
+      const percentage = (
+        (processedFiles.count / processedFiles.total) *
+        100
+      ).toFixed(2);
+      console.log(
+        `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
+      );
     }
   }
 }
@@ -247,7 +277,15 @@ async function createEpub(
   await ensureDirExists(epubDir);
 
   console.log("处理Markdown文件...");
-  await processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles);
+  const totalFiles = countMarkdownFiles(markdownDir);
+  const processedFiles = { count: 0, total: totalFiles };
+  await processMarkdownFiles(
+    markdownDir,
+    epubDir,
+    htmlFiles,
+    titles,
+    processedFiles
+  );
 
   console.log("生成content.opf...");
   const uuid = uuidv4();
