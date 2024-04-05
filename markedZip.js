@@ -2,7 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const JSZip = require("jszip");
 const { exec } = require("child_process");
-const { promisify } = require('util');
+const { v4: uuidv4 } = require("uuid");
+const { promisify } = require("util");
 
 const execAsync = promisify(exec);
 
@@ -27,7 +28,6 @@ async function ensureDirExists(dirPath) {
 
 // 用于将单个Markdown文件转换为HTML
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
-
   try {
     await execAsync(`pandoc "${inputPath}" -o "${outputPath}"`);
   } catch (error) {
@@ -53,15 +53,21 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   }
 }
 
-function generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths) {
-  const id = new Date().getTime(); // 简单生成一个唯一ID
+function generateContentOpf(
+  metadata,
+  htmlFiles,
+  coverImagePath,
+  resourcePaths,
+  uuid
+) {
+  // const id = uuidv4(); // 使用有效的UUID
   let manifestItems = "";
   let spineItems = "";
 
   // 为每个HTML文件创建manifest项
   htmlFiles.forEach((file, index) => {
     const id = `item${index + 1}`;
-    const href = `OEBPS/${file}`; // 确保引用的路径是正确的
+    const href = `${file}`; // 确保引用的路径是正确的
     manifestItems += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>\n`;
     spineItems += `<itemref idref="${id}"/>\n`;
   });
@@ -76,16 +82,22 @@ function generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths) 
   resourcePaths.forEach((resourcePath, index) => {
     const resourceName = path.basename(resourcePath);
     const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
-    manifestItems += `<item id="res${index + 1}" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
+    manifestItems += `<item id="res${
+      index + 1
+    }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
   });
+
+  const now = new Date();
+  const formattedDate = now.toISOString().split(".")[0] + "Z";
 
   const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
     <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
             <dc:title>${metadata.title}</dc:title>
             <dc:creator>${metadata.author}</dc:creator>
-            <dc:identifier id="bookid">urn:uuid:${id}</dc:identifier>
-            <meta property="dcterms:modified">${new Date().toISOString()}</meta>
+            <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
+            <dc:language>en</dc:language> <!-- 添加书籍语言 -->
+            <meta property="dcterms:modified">${formattedDate}</meta>
         </metadata>
         <manifest>
             ${manifestItems}
@@ -98,6 +110,43 @@ function generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths) 
     </package>`;
 
   return contentOpf;
+}
+
+function generateTocNcx(htmlFiles, titles, uuid) {
+  let navPoints = "";
+
+  htmlFiles.forEach((file, index) => {
+    const id = `navPoint-${index + 1}`;
+    const playOrder = index + 1;
+    const navLabel = titles[index];
+    const content = file;
+
+    navPoints += `<navPoint id="${id}" playOrder="${playOrder}">
+      <navLabel>
+        <text>${navLabel}</text>
+      </navLabel>
+      <content src="${content}"/>
+    </navPoint>\n`;
+  });
+
+  const tocNcx = `<?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+  <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+    <head>
+      <meta name="dtb:uid" content="urn:uuid:${uuid}"/>
+      <meta name="dtb:depth" content="1"/>
+      <meta name="dtb:totalPageCount" content="0"/>
+      <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <docTitle>
+      <text>${metadata.title}</text>
+    </docTitle>
+    <navMap>
+      ${navPoints}
+    </navMap>
+  </ncx>`;
+
+  return tocNcx;
 }
 
 function generateTocXhtml(htmlFiles, titles) {
@@ -131,12 +180,12 @@ function generateTocXhtml(htmlFiles, titles) {
 }
 
 function initializeEpubStructure(zip) {
-  // 创建EPUB必要的文件夹结构
-  zip.folder("META-INF");
-  zip.folder("OEBPS");
   // 添加mimetype文件
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   // 添加container.xml文件
+  // 创建EPUB必要的文件夹结构
+  zip.folder("META-INF");
+  zip.folder("OEBPS");
   zip.file(
     "META-INF/container.xml",
     `<?xml version="1.0"?>
@@ -162,20 +211,34 @@ async function createEpubFromMarkdown(
   const htmlFiles = [];
   await ensureDirExists("OEBPS");
   for (const file of markdownFiles) {
-  const htmlFilename = path.basename(file, ".md") + ".html";
-  await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
-  const content = await fs.promises.readFile(`OEBPS/${htmlFilename}`, "utf-8");
-  zip.file(`OEBPS/${htmlFilename}`, content); // 确保文件路径正确
-  htmlFiles.push(`OEBPS/${htmlFilename}`); // 修改这里以确保路径正确
-}
+    const htmlFilename = path.basename(file, ".md") + ".html";
+    await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
+    const content = await fs.promises.readFile(
+      `OEBPS/${htmlFilename}`,
+      "utf-8"
+    );
+    zip.file(`OEBPS/${htmlFilename}`, content); // 确保文件路径正确
+    htmlFiles.push(htmlFilename); // 修改这里以确保路径正确
+  }
 
   await addCoverAndResources(zip, coverImagePath, resourcePaths);
 
-  const contentOpf = generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths);
+  const uuid = uuidv4(); // 生成一个 UUID
+
+  const contentOpf = generateContentOpf(
+    metadata,
+    htmlFiles,
+    coverImagePath,
+    resourcePaths,
+    uuid // 将 UUID 传递给 generateContentOpf 函数
+  );
   zip.file("OEBPS/content.opf", contentOpf);
 
   const tocXhtml = generateTocXhtml(htmlFiles, titles);
   zip.file("OEBPS/toc.xhtml", tocXhtml);
+
+  const tocNcx = generateTocNcx(htmlFiles, titles, uuid);
+  zip.file("OEBPS/toc.ncx", tocNcx);
 
   zip
     .generateAsync({ type: "nodebuffer" })
@@ -188,7 +251,7 @@ async function createEpubFromMarkdown(
 
 // 示例用法
 const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
-const epubOutputPath = "output.epub"; // 输出EPUB路径
+const epubOutputPath = "epubcheck-5.1.0/output.epub"; // 输出EPUB路径
 const metadata = { title: "我的电子书标题", author: "作者名" }; // 电子书元数据
 const titles = ["第一章 标题", "第二章 标题"]; // 章节标题
 const coverImagePath = "cover.jpg"; // 封面图片路径
