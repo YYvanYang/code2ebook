@@ -74,7 +74,8 @@ function processFilesImproved(
         const relativePath = path.relative(fullRepoDir, filePath);
         const chapterTitle = relativePath
           .replace(/_/g, " ")
-          .replace(/\//g, " > ");
+          .replace(/\//g, " > ")
+          .replace(/\\/g, " > ");
         chapters.push({ title: chapterTitle, content: chapterContent });
       }
     }
