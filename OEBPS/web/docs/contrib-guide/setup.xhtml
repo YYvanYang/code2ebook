@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>setup</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<h1 id="project-setup">Project Setup</h1>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Rust &gt;= 1.75</li>
+<li>Node.js &gt;= 18.18.0</li>
+<li>pnpm &gt;= 8</li>
+<li>Git</li>
+</ul>
+<h2 id="setup">Setup</h2>
+<p>On your first checkout of the repository, you’ll need to install
+required tools and dependencies.</p>
+<div class="tip">
+<p>If you are using <a href="https://moonrepo.dev/proto">proto</a>, you
+can run <code>proto use</code> in the repository root to install Rust,
+Node.js, and pnpm. For other tools, or if not using proto, continue
+reading.</p>
+</div>
+<p>We have made initializing the project automatic with the
+<code>just</code> command. However, you still need to install some meta
+tools and dependencies before you can use the command.</p>
+<h3 id="rust">Rust</h3>
+<p>Rolldown is built on Rust and requires <code>rustup</code> and
+<code>cargo</code> to exist in your environment. You can <a
+href="https://www.rust-lang.org/tools/install">install Rust from the
+official website</a>.</p>
+<p>We also require <code>just</code> and <code>cargo-binstall</code>.
+You can install these with:</p>
+<pre class="shell"><code>cargo install cargo-binstall
+cargo binstall just</code></pre>
+<h3 id="node.js">Node.js</h3>
+<p>Rolldown is a npm package built with <a
+href="https://napi.rs/">NAPI-RS</a> and is published to the npm
+registry, and as such requires Node.js and pnpm (for dependency
+management).</p>
+<p>We recommend installing Node.js with a version manager, like <a
+href="https://github.com/nvm-sh/nvm">nvm</a> or <a
+href="https://github.com/Schniz/fnm">fnm</a>. Make sure to install and
+use Node.js version 18.18.0+, which is the minimum requirement for this
+project. You can skip this step if you are already using a Node.js
+version manager of your choice and on a Node.js version that meets the
+requirement.</p>
+<p>We recommend enabling pnpm via <a
+href="https://nodejs.org/api/corepack.html">corepack</a>, so the correct
+version of pnpm can be automatically used when working in this
+project:</p>
+<pre class="shell"><code>corepack enable</code></pre>
+<h3 id="init">Init</h3>
+<p>Once Rust, Node.js and pnpm are installed, run the following command
+to install all required dependencies:</p>
+<pre class="shell"><code>just init</code></pre>
+<p>After initialization, everything should be setup and ready to go. You
+could run</p>
+<pre class="shell"><code>just roll</code></pre>
+<p>to verify that everything is setup correctly.</p>
+<div class="tip">
+<p><code>just roll</code> command almost run all ci checks locally. It’s
+useful to run this before pushing your changes. It also has three
+variants:</p>
+<ul>
+<li><code>just roll-rust</code> - Run only Rust checks.</li>
+<li><code>just roll-node</code> - Run only Node.js checks.</li>
+<li><code>just roll-repo</code> - Checks for non-code related issues,
+like file na</li>
+</ul>
+</div>
+<h2 id="high-level-workflow">High Level Workflow</h2>
+<p>The following commands are available and should be used in your
+standard development workflow.</p>
+<ul>
+<li><code>just init</code> - Install required tools and
+dependencies.</li>
+<li><code>just roll</code> - Runs various kinds of checks to ensure the
+project is in a good state.</li>
+<li><code>just lint</code> - Lint the codebase.</li>
+<li><code>just fmt</code> - Fix formatting issues.</li>
+<li><code>just check</code> - Run the type checker.</li>
+<li><code>just test</code> - Runs tests. Also see <a
+href="./testing.md">Testing</a>.</li>
+</ul>
+<blockquote>
+<p>Most of commands will run both Rust and Node.js scripts. To only
+target one, append <code>-rust</code> or <code>-node</code> to the just
+command. For example, <code>just lint-rust</code> or
+<code>just check-node</code>.</p>
+</blockquote>
+<div class="tip">
+<p>You could run the command <code>just</code> only and it will show you
+all available commands.</p>
+</div>
+</body>
+</html>

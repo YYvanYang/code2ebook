@@ -216,48 +216,6 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
-// async function processMarkdownFiles(
-//   markdownDir,
-//   epubDir,
-//   htmlFiles,
-//   titles,
-//   processedFiles
-// ) {
-//   const files = fs.readdirSync(markdownDir);
-//   for (const file of files) {
-//     const filePath = path.join(markdownDir, file);
-//     const stats = fs.statSync(filePath);
-//     if (stats.isDirectory()) {
-//       const subDir = path.join(epubDir, file);
-//       fs.mkdirSync(subDir, { recursive: true });
-//       console.log(`创建子目录: ${subDir}`);
-//       await processMarkdownFiles(
-//         filePath,
-//         subDir,
-//         htmlFiles,
-//         titles,
-//         processedFiles
-//       );
-//     } else if (path.extname(file) === ".md") {
-//       const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
-//       const htmlFilePath = path.join(epubDir, htmlFilename);
-//       console.log(`转换Markdown文件: ${filePath}`);
-//       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
-//       const filePathInEpub = path.relative(epubDir, htmlFilePath);
-//       htmlFiles.push(filePathInEpub);
-//       titles.push(path.basename(file, ".md"));
-//       processedFiles.count++;
-//       const percentage = (
-//         (processedFiles.count / processedFiles.total) *
-//         100
-//       ).toFixed(2);
-//       console.log(
-//         `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
-//       );
-//     }
-//   }
-// }
-
 async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, processedFiles) {
   const files = fs.readdirSync(markdownDir);
   const markdownFiles = files.filter(file => path.extname(file) === '.md');
