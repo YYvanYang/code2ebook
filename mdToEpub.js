@@ -227,7 +227,13 @@ async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles) {
   }
 }
 
-async function createEpub(markdownDir, epubPath, metadata) {
+async function createEpub(
+  markdownDir,
+  epubPath,
+  metadata,
+  coverImagePath,
+  resourcePaths = []
+) {
   console.log("开始创建EPUB...");
 
   const zip = new JSZip();
@@ -245,7 +251,13 @@ async function createEpub(markdownDir, epubPath, metadata) {
 
   console.log("生成content.opf...");
   const uuid = uuidv4();
-  const contentOpf = generateContentOpf(metadata, htmlFiles, uuid);
+  const contentOpf = generateContentOpf(
+    metadata,
+    htmlFiles,
+    coverImagePath,
+    resourcePaths,
+    uuid
+  );
   zip.file("OEBPS/content.opf", contentOpf);
 
   console.log("生成toc.xhtml...");
