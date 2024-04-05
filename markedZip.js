@@ -2,19 +2,38 @@ const fs = require("fs");
 const path = require("path");
 const JSZip = require("jszip");
 const { exec } = require("child_process");
+const { promisify } = require('util');
+
+const execAsync = promisify(exec);
+
+// 使用异步方式删除目录，支持递归删除
+const rmDirAsync = async (dirPath) => {
+  try {
+    await fs.promises.rm(dirPath, { recursive: true, force: true });
+  } catch (error) {
+    console.error(`Error removing directory ${dirPath}:`, error);
+  }
+};
+
+// 异步确保目录存在，如果存在，则先删除后重新创建
+async function ensureDirExists(dirPath) {
+  if (fs.existsSync(dirPath)) {
+    // 如果目录存在，则先删除
+    await fs.promises.rm(dirPath, { recursive: true, force: true });
+  }
+  // 创建目录
+  await fs.promises.mkdir(dirPath, { recursive: true });
+}
 
 // 用于将单个Markdown文件转换为HTML
-function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    const command = `pandoc "${inputPath}" -o "${outputPath}"`;
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(stdout);
-    });
-  });
+async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
+
+  try {
+    await execAsync(`pandoc "${inputPath}" -o "${outputPath}"`);
+  } catch (error) {
+    console.error(`Error converting markdown to HTML: ${error}`);
+    throw error; // 重新抛出错误，以便调用者可以捕获
+  }
 }
 
 async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
@@ -34,7 +53,7 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   }
 }
 
-function generateContentOpf(metadata, htmlFiles) {
+function generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths) {
   const id = new Date().getTime(); // 简单生成一个唯一ID
   let manifestItems = "";
   let spineItems = "";
@@ -42,9 +61,22 @@ function generateContentOpf(metadata, htmlFiles) {
   // 为每个HTML文件创建manifest项
   htmlFiles.forEach((file, index) => {
     const id = `item${index + 1}`;
-    const href = file;
+    const href = `OEBPS/${file}`; // 确保引用的路径是正确的
     manifestItems += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>\n`;
     spineItems += `<itemref idref="${id}"/>\n`;
+  });
+
+  // 如果存在封面图像，添加到manifest
+  if (coverImagePath) {
+    const coverImageName = path.basename(coverImagePath);
+    manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
+  }
+
+  // 添加其他资源到manifest
+  resourcePaths.forEach((resourcePath, index) => {
+    const resourceName = path.basename(resourcePath);
+    const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
+    manifestItems += `<item id="res${index + 1}" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
   });
 
   const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
@@ -58,6 +90,7 @@ function generateContentOpf(metadata, htmlFiles) {
         <manifest>
             ${manifestItems}
             <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+            <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
         </manifest>
         <spine toc="ncx">
             ${spineItems}
@@ -127,17 +160,18 @@ async function createEpubFromMarkdown(
   initializeEpubStructure(zip);
 
   const htmlFiles = [];
+  await ensureDirExists("OEBPS");
   for (const file of markdownFiles) {
-    const htmlFilename = path.basename(file, ".md") + ".html";
-    await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
-    const content = fs.readFileSync(`OEBPS/${htmlFilename}`, "utf-8");
-    zip.file(htmlFilename, content);
-    htmlFiles.push(htmlFilename);
-  }
+  const htmlFilename = path.basename(file, ".md") + ".html";
+  await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
+  const content = await fs.promises.readFile(`OEBPS/${htmlFilename}`, "utf-8");
+  zip.file(`OEBPS/${htmlFilename}`, content); // 确保文件路径正确
+  htmlFiles.push(`OEBPS/${htmlFilename}`); // 修改这里以确保路径正确
+}
 
   await addCoverAndResources(zip, coverImagePath, resourcePaths);
 
-  const contentOpf = generateContentOpf(metadata, htmlFiles);
+  const contentOpf = generateContentOpf(metadata, htmlFiles, coverImagePath, resourcePaths);
   zip.file("OEBPS/content.opf", contentOpf);
 
   const tocXhtml = generateTocXhtml(htmlFiles, titles);
