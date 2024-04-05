@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const async = require('async');
 const JSZip = require("jszip");
 const { exec } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
@@ -215,14 +216,73 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
-async function processMarkdownFiles(
-  markdownDir,
-  epubDir,
-  htmlFiles,
-  titles,
-  processedFiles
-) {
+// async function processMarkdownFiles(
+//   markdownDir,
+//   epubDir,
+//   htmlFiles,
+//   titles,
+//   processedFiles
+// ) {
+//   const files = fs.readdirSync(markdownDir);
+//   for (const file of files) {
+//     const filePath = path.join(markdownDir, file);
+//     const stats = fs.statSync(filePath);
+//     if (stats.isDirectory()) {
+//       const subDir = path.join(epubDir, file);
+//       fs.mkdirSync(subDir, { recursive: true });
+//       console.log(`创建子目录: ${subDir}`);
+//       await processMarkdownFiles(
+//         filePath,
+//         subDir,
+//         htmlFiles,
+//         titles,
+//         processedFiles
+//       );
+//     } else if (path.extname(file) === ".md") {
+//       const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
+//       const htmlFilePath = path.join(epubDir, htmlFilename);
+//       console.log(`转换Markdown文件: ${filePath}`);
+//       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
+//       const filePathInEpub = path.relative(epubDir, htmlFilePath);
+//       htmlFiles.push(filePathInEpub);
+//       titles.push(path.basename(file, ".md"));
+//       processedFiles.count++;
+//       const percentage = (
+//         (processedFiles.count / processedFiles.total) *
+//         100
+//       ).toFixed(2);
+//       console.log(
+//         `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
+//       );
+//     }
+//   }
+// }
+
+async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, processedFiles) {
   const files = fs.readdirSync(markdownDir);
+  const markdownFiles = files.filter(file => path.extname(file) === '.md');
+
+  const convertQueue = async.queue(async (file, callback) => {
+    const filePath = path.join(markdownDir, file);
+    const htmlFilename = `${path.basename(file, '.md')}.xhtml`;
+    const htmlFilePath = path.join(epubDir, htmlFilename);
+    console.log(`转换Markdown文件: ${filePath}`);
+    await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
+    const filePathInEpub = path.relative(epubDir, htmlFilePath);
+    htmlFiles.push(filePathInEpub);
+    titles.push(path.basename(file, '.md'));
+    processedFiles.count++;
+    const percentage = ((processedFiles.count / processedFiles.total) * 100).toFixed(2);
+    console.log(`转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`);
+    callback();
+  }, 15);
+
+  convertQueue.push(markdownFiles);
+
+  await new Promise((resolve) => {
+    convertQueue.drain(resolve);
+  });
+
   for (const file of files) {
     const filePath = path.join(markdownDir, file);
     const stats = fs.statSync(filePath);
@@ -230,29 +290,7 @@ async function processMarkdownFiles(
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
       console.log(`创建子目录: ${subDir}`);
-      await processMarkdownFiles(
-        filePath,
-        subDir,
-        htmlFiles,
-        titles,
-        processedFiles
-      );
-    } else if (path.extname(file) === ".md") {
-      const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
-      const htmlFilePath = path.join(epubDir, htmlFilename);
-      console.log(`转换Markdown文件: ${filePath}`);
-      await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
-      const filePathInEpub = path.relative(epubDir, htmlFilePath);
-      htmlFiles.push(filePathInEpub);
-      titles.push(path.basename(file, ".md"));
-      processedFiles.count++;
-      const percentage = (
-        (processedFiles.count / processedFiles.total) *
-        100
-      ).toFixed(2);
-      console.log(
-        `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
-      );
+      await processMarkdownFiles(filePath, subDir, htmlFiles, titles, processedFiles);
     }
   }
 }
