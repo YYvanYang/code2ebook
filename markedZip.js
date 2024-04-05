@@ -7,15 +7,6 @@ const { promisify } = require("util");
 
 const execAsync = promisify(exec);
 
-// 使用异步方式删除目录，支持递归删除
-const rmDirAsync = async (dirPath) => {
-  try {
-    await fs.promises.rm(dirPath, { recursive: true, force: true });
-  } catch (error) {
-    console.error(`Error removing directory ${dirPath}:`, error);
-  }
-};
-
 // 异步确保目录存在，如果存在，则先删除后重新创建
 async function ensureDirExists(dirPath) {
   if (fs.existsSync(dirPath)) {
@@ -29,10 +20,24 @@ async function ensureDirExists(dirPath) {
 // 用于将单个Markdown文件转换为HTML
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
-    await execAsync(`pandoc "${inputPath}" -o "${outputPath}"`);
+    await execAsync(
+      `pandoc "${inputPath}" -f markdown -t html -s -o "${outputPath}"`
+    );
+
+    // 读取生成的 HTML 文件
+    let htmlContent = await fs.promises.readFile(outputPath, "utf-8");
+
+    // 添加 EPUB 命名空间声明
+    htmlContent = htmlContent.replace(
+      /<html>/,
+      '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
+    );
+
+    // 将修改后的内容写回文件
+    await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
   } catch (error) {
     console.error(`Error converting markdown to HTML: ${error}`);
-    throw error; // 重新抛出错误，以便调用者可以捕获
+    throw error;
   }
 }
 
@@ -60,7 +65,6 @@ function generateContentOpf(
   resourcePaths,
   uuid
 ) {
-  // const id = uuidv4(); // 使用有效的UUID
   let manifestItems = "";
   let spineItems = "";
 
@@ -154,7 +158,6 @@ function generateTocXhtml(htmlFiles, titles) {
 
   // 假设titles数组包含了与htmlFiles对应的章节标题
   htmlFiles.forEach((file, index) => {
-    const id = `item${index + 1}`;
     const href = file;
     const title = titles[index];
     tocItems += `<li><a href="${href}">${title}</a></li>\n`;
