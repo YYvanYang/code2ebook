@@ -37,7 +37,14 @@ function extractRepoDetails(repoUrl) {
 }
 
 function codeToMarkdown(content, language) {
-  const backtickSequence = "```";
+  if (typeof language !== "string" || !language.trim()) {
+    language = "";
+  }
+  const maxBackticks = (content.match(/`+/g) || []).reduce(
+    (max, curr) => Math.max(max, curr.length),
+    0
+  );
+  const backtickSequence = "`".repeat(Math.max(3, maxBackticks + 1));
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
