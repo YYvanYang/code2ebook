@@ -397,7 +397,18 @@ async function processMarkdownFiles(
     }
 
     htmlFiles.push(htmlFileFullName.replace("OEBPS/", ""));
-    titles.push(path.basename(file, ".md"));
+
+    // console.log(`添加文件到EPUB: `, htmlFileRelativePath);
+    // get full path of the html file
+    let relativePathOfHtmlPath = htmlFileFullName.replace("OEBPS/", "");
+    // replace backslashes or forward slashes with ` > `
+    relativePathOfHtmlPath = relativePathOfHtmlPath.replace(/\\/g, " > ");
+    relativePathOfHtmlPath = relativePathOfHtmlPath.replace(/\//g, " > ");
+    // remove extension
+    relativePathOfHtmlPath = relativePathOfHtmlPath.replace(".xhtml", "");
+
+    titles.push(relativePathOfHtmlPath);
+    console.log(`添加章节标题: `, relativePathOfHtmlPath);
     processedFiles.count++;
     const percentage = (
       (processedFiles.count / processedFiles.total) *
@@ -518,7 +529,7 @@ async function validateEpub(epubPath) {
 }
 
 // 示例用法
-const markdownDir = "markdown/zed"; // 替换为实际的Markdown文件夹路径
+const markdownDir = "markdown/rolldown"; // 替换为实际的Markdown文件夹路径
 const epubPath = "output.epub";
 const metadata = {
   title: "电子书标题",
