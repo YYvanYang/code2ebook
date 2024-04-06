@@ -225,6 +225,38 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
+async function processImageReferences(markdownDir, epubDir, markdownFilePath) {
+  const markdownContent = await fs.promises.readFile(markdownFilePath, "utf-8");
+  const pattern = /!\[[^\]]*\]\((.*?)\)/g;
+  const matches = markdownContent.match(pattern);
+
+  if (matches) {
+    const epubBaseDir = "OEBPS";
+    for (const match of matches) {
+      const imagePath = match.match(/\((.*?)\)/)[1];
+      const normalizedImagePath = path.normalize(imagePath);
+      const absoluteImagePath = path.join(markdownDir, normalizedImagePath);
+
+      // 检查原图片资源是否存在
+      if (fs.existsSync(absoluteImagePath)) {
+        const imageDestPath = path.join(
+          epubBaseDir,
+          "images",
+          path.basename(normalizedImagePath)
+        );
+
+        // 确保目标目录存在
+        await fs.promises.mkdir(path.dirname(imageDestPath), { recursive: true });
+
+        await fs.promises.copyFile(absoluteImagePath, imageDestPath);
+        console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
+      } else {
+        console.warn(`图片不存在: ${absoluteImagePath}`);
+      }
+    }
+  }
+}
+
 async function processMarkdownFiles(
   markdownDir,
   epubDir,
@@ -243,27 +275,7 @@ async function processMarkdownFiles(
     await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
     // 处理 Markdown 文件中的图片引用
-    const markdownContent = await fs.promises.readFile(filePath, "utf-8");
-    // 定义匹配图片资源的正则表达式
-    const pattern = /!\[[^\]]*\]\((.*?)\)/g;
-
-    // 匹配所有图片资源
-    const matches = markdownContent.match(pattern);
-
-    if (matches) {
-      for (const match of matches) {
-        // 提取图片路径
-        const imagePath = match.match(/\((.*?)\)/)[1];
-
-        // 规范化路径
-        const normalizedImagePath = path.normalize(imagePath);
-
-        // 复制图片到 EPUB 目录
-        const imageDestPath = path.join(epubDir, "images", path.basename(normalizedImagePath));
-        await fs.promises.copyFile(path.join(markdownDir, normalizedImagePath), imageDestPath);
-        console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
-      }
-    }
+    await processImageReferences(markdownDir, epubDir, filePath);
 
     const filePathInEpub = path.relative(epubDir, htmlFilePath);
     htmlFiles.push(filePathInEpub);
