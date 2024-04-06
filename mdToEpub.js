@@ -1,21 +1,30 @@
 const fs = require("fs");
 const path = require("path");
-const async = require('async');
+const async = require("async");
 const JSZip = require("jszip");
-const { exec } = require("child_process");
+const { exec, execSync } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
 const { promisify } = require("util");
+const { dir } = require("console");
 
 const execAsync = promisify(exec);
 
-// 异步确保目录存在，如果存在，则先删除后重新创建
-async function ensureDirExists(dirPath) {
-  if (fs.existsSync(dirPath)) {
-    // 如果目录存在，则先删除
-    await fs.promises.rm(dirPath, { recursive: true, force: true });
+async function ensureDirectoryExists(dirPath) {
+  try {
+    await fs.promises.access(dirPath);
+  } catch (error) {
+    await fs.promises.mkdir(dirPath, { recursive: true });
   }
-  // 创建目录
-  await fs.promises.mkdir(dirPath, { recursive: true });
+}
+
+async function cleanDirectory(directory) {
+  if (fs.existsSync(directory)) {
+    if (process.platform === "win32") {
+      fs.rmSync(directory, { recursive: true });
+    } else {
+      execSync(`rm -rf ${directory}`);
+    }
+  }
 }
 
 // 用于将单个Markdown文件转换为HTML
@@ -216,22 +225,49 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
-async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, processedFiles) {
+async function processMarkdownFiles(
+  markdownDir,
+  epubDir,
+  htmlFiles,
+  titles,
+  processedFiles
+) {
   const files = fs.readdirSync(markdownDir);
-  const markdownFiles = files.filter(file => path.extname(file) === '.md');
+  const markdownFiles = files.filter((file) => path.extname(file) === ".md");
 
   const convertQueue = async.queue(async (file, callback) => {
     const filePath = path.join(markdownDir, file);
-    const htmlFilename = `${path.basename(file, '.md')}.xhtml`;
+    const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
     const htmlFilePath = path.join(epubDir, htmlFilename);
     console.log(`转换Markdown文件: ${filePath}`);
     await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
+
+    // 处理 Markdown 文件中的图片引用
+    const markdownContent = await fs.promises.readFile(filePath, "utf-8");
+    const imageRegex = /!\[.*?\]\((.*?)\)/g;
+    let match;
+    while ((match = imageRegex.exec(markdownContent)) !== null) {
+      const imagePath = path.join(markdownDir, match[1]);
+      const imageDestPath = path.join(
+        epubDir,
+        "images",
+        path.basename(imagePath)
+      );
+      await fs.promises.copyFile(imagePath, imageDestPath);
+      console.log(`复制图片: ${imagePath} -> ${imageDestPath}`);
+    }
+
     const filePathInEpub = path.relative(epubDir, htmlFilePath);
     htmlFiles.push(filePathInEpub);
-    titles.push(path.basename(file, '.md'));
+    titles.push(path.basename(file, ".md"));
     processedFiles.count++;
-    const percentage = ((processedFiles.count / processedFiles.total) * 100).toFixed(2);
-    console.log(`转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`);
+    const percentage = (
+      (processedFiles.count / processedFiles.total) *
+      100
+    ).toFixed(2);
+    console.log(
+      `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
+    );
     callback();
   }, 15);
 
@@ -248,7 +284,13 @@ async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, pro
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
       console.log(`创建子目录: ${subDir}`);
-      await processMarkdownFiles(filePath, subDir, htmlFiles, titles, processedFiles);
+      await processMarkdownFiles(
+        filePath,
+        subDir,
+        htmlFiles,
+        titles,
+        processedFiles
+      );
     }
   }
 }
@@ -270,7 +312,8 @@ async function createEpub(
 
   const epubDir = "OEBPS";
   console.log(`创建EPUB目录: ${epubDir}`);
-  await ensureDirExists(epubDir);
+  await cleanDirectory(epubDir);
+  await ensureDirectoryExists(epubDir);
 
   console.log("处理Markdown文件...");
   const totalFiles = countMarkdownFiles(markdownDir);
@@ -333,7 +376,7 @@ async function validateEpub(epubPath) {
 }
 
 // 示例用法
-const markdownDir = "markdown/rolldown"; // 替换为实际的Markdown文件夹路径
+const markdownDir = "markdown/mdExample"; // 替换为实际的Markdown文件夹路径
 const epubPath = "output.epub";
 const metadata = {
   title: "电子书标题",
@@ -354,7 +397,8 @@ async function createEpubFromMarkdown(
   initializeEpubStructure(zip);
 
   const htmlFiles = [];
-  await ensureDirExists("OEBPS");
+  await cleanDirectory("OEBPS");
+  await ensureDirectoryExists("OEBPS");
   for (const file of markdownFiles) {
     const htmlFilename = path.basename(file, ".md") + ".html";
     await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
