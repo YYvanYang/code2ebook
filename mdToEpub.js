@@ -226,7 +226,12 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
-async function processImageReferences(markdownDir, epubDir, markdownFilePath) {
+async function processImageReferences(
+  zip,
+  markdownDir,
+  epubDir,
+  markdownFilePath
+) {
   const markdownContent = await fs.promises.readFile(markdownFilePath, "utf-8");
   const pattern = /!\[[^\]]*\]\((.*?)\)/g;
   const matches = markdownContent.match(pattern);
@@ -253,6 +258,9 @@ async function processImageReferences(markdownDir, epubDir, markdownFilePath) {
 
         await fs.promises.copyFile(absoluteImagePath, imageDestPath);
         console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
+        // replace backslashes with forward slashes
+        const imageDestPathNormalized = imageDestPath.replace(/\\/g, "/");
+        zip.file(imageDestPathNormalized, fs.readFileSync(imageDestPath));
       } else {
         console.warn(`图片不存在: ${absoluteImagePath}`);
       }
@@ -279,9 +287,11 @@ async function processMarkdownFiles(
     await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
     // 处理 Markdown 文件中的图片引用
-    await processImageReferences(markdownDir, epubDir, filePath);
+    await processImageReferences(zip, markdownDir, epubDir, filePath);
 
-    const htmlFileFullName = path.join(epubDir, htmlFilename);
+    let htmlFileFullName = path.join(epubDir, htmlFilename);
+    // replace backslashes with forward slashes
+    htmlFileFullName = htmlFileFullName.replace(/\\/g, "/");
     const htmlFileRelativePath = path.relative(epubDir, htmlFilename);
     console.log(
       `添加文件到EPUB: `,
@@ -290,14 +300,14 @@ async function processMarkdownFiles(
       htmlFilePath,
       htmlFilename
     );
-    const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
     try {
+      const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
       zip.file(htmlFileFullName, content); // 确保文件路径正确
     } catch (error) {
       console.error(`Error adding file to EPUB: ${error}`);
     }
 
-    htmlFiles.push(htmlFilename);
+    htmlFiles.push(htmlFileFullName.replace("OEBPS/", ""));
     titles.push(path.basename(file, ".md"));
     processedFiles.count++;
     const percentage = (
@@ -324,6 +334,7 @@ async function processMarkdownFiles(
       fs.mkdirSync(subDir, { recursive: true });
       console.log(`创建子目录: ${subDir}`);
       await processMarkdownFiles(
+        zip,
         filePath,
         subDir,
         htmlFiles,
