@@ -26,21 +26,53 @@ async function cleanDirectory(directory) {
   }
 }
 
+function addEpubNamespaceToHtml(htmlContent) {
+
+  // 使用正则表达式查找<html>标签
+  const htmlRegex = /<html(\s+[^>]*)?>/i;
+  const match = htmlContent.match(htmlRegex);
+
+  if (match) {
+    const htmlTag = match[0];
+
+    // 检查是否已经存在epub命名空间
+    if (!htmlTag.includes('xmlns:epub')) {
+      // 如果不存在，则添加epub命名空间
+      const modifiedHtmlTag = htmlTag.replace(/>$/, ' xmlns:epub="http://www.idpf.org/2007/ops">');
+      const modifiedHtmlContent = htmlContent.replace(htmlRegex, modifiedHtmlTag);
+
+      return modifiedHtmlContent;
+    }
+  } 
+  return htmlContent;
+}
+
+function replaceAlign(html) {
+  // 使用正则表达式匹配 <p> 标签中的 align 属性
+  const regex = /(<p\b[^>]*?\s)align=["']center["']([^>]*>)/gi;
+  
+  // 将匹配到的 align 属性替换为 style="text-align: center;"
+  return html.replace(regex, '$1style="text-align: center;"$2');
+}
+
 // 用于将单个Markdown文件转换为HTML
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
-      `pandoc "${inputPath}" -f markdown -t html -s -o "${outputPath}"`
+      `pandoc "${inputPath}" -f markdown -t html5 -s -o "${outputPath}"`
     );
 
     // 读取生成的 HTML 文件
     let htmlContent = await fs.promises.readFile(outputPath, "utf-8");
 
     // 添加 EPUB 命名空间声明
-    htmlContent = htmlContent.replace(
-      /<html>/,
-      '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
-    );
+    // xmlns:epub="http://www.idpf.org/2007/ops"
+    htmlContent = addEpubNamespaceToHtml(htmlContent);
+
+    // 将 <p align="center"> 标签替换为 <p style="text-align: center;">
+    htmlContent = replaceAlign(htmlContent);
+
+
 
     // 将修改后的内容写回文件
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
