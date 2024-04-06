@@ -69,6 +69,64 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   }
 }
 
+// function generateContentOpf(
+//   metadata,
+//   htmlFiles,
+//   coverImagePath,
+//   resourcePaths,
+//   uuid
+// ) {
+//   let manifestItems = "";
+//   let spineItems = "";
+
+//   // 为每个HTML文件创建manifest项
+//   htmlFiles.forEach((file, index) => {
+//     const id = `item${index + 1}`;
+//     const href = `${file}`; // 确保引用的路径是正确的
+//     manifestItems += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>\n`;
+//     spineItems += `<itemref idref="${id}"/>\n`;
+//   });
+
+//   // 如果存在封面图像，添加到manifest
+//   if (coverImagePath) {
+//     const coverImageName = path.basename(coverImagePath);
+//     manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
+//   }
+
+//   // 添加其他资源到manifest
+//   resourcePaths.forEach((resourcePath, index) => {
+//     const resourceName = path.basename(resourcePath);
+//     const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
+//     manifestItems += `<item id="res${
+//       index + 1
+//     }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
+//   });
+
+//   const now = new Date();
+//   const formattedDate = now.toISOString().split(".")[0] + "Z";
+
+//   const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
+//     <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+//         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+//             <dc:title>${metadata.title}</dc:title>
+//             <dc:creator>${metadata.author}</dc:creator>
+//             <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
+//             <dc:language>en</dc:language> <!-- 添加书籍语言 -->
+//             <meta property="dcterms:modified">${formattedDate}</meta>
+//         </metadata>
+//         <manifest>
+//             ${manifestItems}
+//             <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+//             <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+//         </manifest>
+//         <spine toc="ncx">
+//             ${spineItems}
+//         </spine>
+//     </package>`;
+
+//   return contentOpf;
+// }
+
 function generateContentOpf(
   metadata,
   htmlFiles,
@@ -96,7 +154,7 @@ function generateContentOpf(
   // 添加其他资源到manifest
   resourcePaths.forEach((resourcePath, index) => {
     const resourceName = path.basename(resourcePath);
-    const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
+    const mediaType = getMediaType(resourcePath); // 根据文件扩展名获取正确的媒体类型
     manifestItems += `<item id="res${
       index + 1
     }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
@@ -111,7 +169,7 @@ function generateContentOpf(
             <dc:title>${metadata.title}</dc:title>
             <dc:creator>${metadata.author}</dc:creator>
             <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
-            <dc:language>en</dc:language> <!-- 添加书籍语言 -->
+            <dc:language>en</dc:language>
             <meta property="dcterms:modified">${formattedDate}</meta>
         </metadata>
         <manifest>
@@ -125,6 +183,25 @@ function generateContentOpf(
     </package>`;
 
   return contentOpf;
+}
+
+// 根据文件扩展名获取媒体类型
+function getMediaType(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  switch (extension) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    // 添加其他常见的媒体类型
+    default:
+      return "application/octet-stream";
+  }
 }
 
 function generateTocNcx(htmlFiles, titles, uuid) {
