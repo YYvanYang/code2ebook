@@ -244,17 +244,25 @@ async function processMarkdownFiles(
 
     // 处理 Markdown 文件中的图片引用
     const markdownContent = await fs.promises.readFile(filePath, "utf-8");
-    const imageRegex = /!\[.*?\]\((.*?)\)/g;
-    let match;
-    while ((match = imageRegex.exec(markdownContent)) !== null) {
-      const imagePath = path.join(markdownDir, match[1]);
-      const imageDestPath = path.join(
-        epubDir,
-        "images",
-        path.basename(imagePath)
-      );
-      await fs.promises.copyFile(imagePath, imageDestPath);
-      console.log(`复制图片: ${imagePath} -> ${imageDestPath}`);
+    // 定义匹配图片资源的正则表达式
+    const pattern = /!\[[^\]]*\]\((.*?)\)/g;
+
+    // 匹配所有图片资源
+    const matches = markdownContent.match(pattern);
+
+    if (matches) {
+      for (const match of matches) {
+        // 提取图片路径
+        const imagePath = match.match(/\((.*?)\)/)[1];
+
+        // 规范化路径
+        const normalizedImagePath = path.normalize(imagePath);
+
+        // 复制图片到 EPUB 目录
+        const imageDestPath = path.join(epubDir, "images", path.basename(normalizedImagePath));
+        await fs.promises.copyFile(path.join(markdownDir, normalizedImagePath), imageDestPath);
+        console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
+      }
     }
 
     const filePathInEpub = path.relative(epubDir, htmlFilePath);
