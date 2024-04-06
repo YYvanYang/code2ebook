@@ -151,6 +151,18 @@ function generateContentOpf(
     manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
   }
 
+  // 添加OEBPS/images目录中的所有图片到manifest
+  const imagesDir = "OEBPS/images";
+  if (fs.existsSync(imagesDir)) {
+    const imageFiles = fs.readdirSync(imagesDir);
+    imageFiles.forEach((file, index) => {
+      const mediaType = getMediaType(file);
+      manifestItems += `<item id="image${
+        index + 1
+      }" href="images/${file}" media-type="${mediaType}"/>\n`;
+    });
+  }
+
   // 添加其他资源到manifest
   resourcePaths.forEach((resourcePath, index) => {
     const resourceName = path.basename(resourcePath);
