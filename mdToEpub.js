@@ -407,7 +407,7 @@ async function processMarkdownFiles(
       `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
     );
     callback();
-  }, 1);
+  }, 15);
 
   convertQueue.push(markdownFiles);
 
@@ -518,7 +518,7 @@ async function validateEpub(epubPath) {
 }
 
 // 示例用法
-const markdownDir = "markdown/mdExample"; // 替换为实际的Markdown文件夹路径
+const markdownDir = "markdown/zed"; // 替换为实际的Markdown文件夹路径
 const epubPath = "output.epub";
 const metadata = {
   title: "电子书标题",
