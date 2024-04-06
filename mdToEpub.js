@@ -1,21 +1,29 @@
 const fs = require("fs");
 const path = require("path");
-const async = require('async');
+const async = require("async");
 const JSZip = require("jszip");
-const { exec } = require("child_process");
+const { exec, execSync } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
 const { promisify } = require("util");
 
 const execAsync = promisify(exec);
 
-// 异步确保目录存在，如果存在，则先删除后重新创建
-async function ensureDirExists(dirPath) {
-  if (fs.existsSync(dirPath)) {
-    // 如果目录存在，则先删除
-    await fs.promises.rm(dirPath, { recursive: true, force: true });
+async function ensureDirectoryExists(dirPath) {
+  try {
+    await fs.promises.access(dirPath);
+  } catch (error) {
+    await fs.promises.mkdir(dirPath, { recursive: true });
   }
-  // 创建目录
-  await fs.promises.mkdir(dirPath, { recursive: true });
+}
+
+async function cleanDirectory(directory) {
+  if (fs.existsSync(directory)) {
+    if (process.platform === "win32") {
+      fs.rmSync(directory, { recursive: true });
+    } else {
+      execSync(`rm -rf ${directory}`);
+    }
+  }
 }
 
 // 用于将单个Markdown文件转换为HTML
@@ -46,18 +54,78 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   try {
     if (coverImagePath) {
       const coverImageContent = fs.readFileSync(coverImagePath);
+      await ensureDirectoryExists("OEBPS/images");
       zip.file("OEBPS/images/cover.jpg", coverImageContent);
     }
 
     for (const resourcePath of resourcePaths) {
       const resourceName = path.basename(resourcePath);
       const resourceContent = fs.readFileSync(resourcePath);
+      await ensureDirectoryExists("OEBPS/images");
       zip.file(`OEBPS/images/${resourceName}`, resourceContent);
     }
   } catch (error) {
     console.error("Error adding cover or resources:", error);
   }
 }
+
+// function generateContentOpf(
+//   metadata,
+//   htmlFiles,
+//   coverImagePath,
+//   resourcePaths,
+//   uuid
+// ) {
+//   let manifestItems = "";
+//   let spineItems = "";
+
+//   // 为每个HTML文件创建manifest项
+//   htmlFiles.forEach((file, index) => {
+//     const id = `item${index + 1}`;
+//     const href = `${file}`; // 确保引用的路径是正确的
+//     manifestItems += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>\n`;
+//     spineItems += `<itemref idref="${id}"/>\n`;
+//   });
+
+//   // 如果存在封面图像，添加到manifest
+//   if (coverImagePath) {
+//     const coverImageName = path.basename(coverImagePath);
+//     manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
+//   }
+
+//   // 添加其他资源到manifest
+//   resourcePaths.forEach((resourcePath, index) => {
+//     const resourceName = path.basename(resourcePath);
+//     const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
+//     manifestItems += `<item id="res${
+//       index + 1
+//     }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
+//   });
+
+//   const now = new Date();
+//   const formattedDate = now.toISOString().split(".")[0] + "Z";
+
+//   const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
+//     <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+//         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+//             <dc:title>${metadata.title}</dc:title>
+//             <dc:creator>${metadata.author}</dc:creator>
+//             <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
+//             <dc:language>en</dc:language> <!-- 添加书籍语言 -->
+//             <meta property="dcterms:modified">${formattedDate}</meta>
+//         </metadata>
+//         <manifest>
+//             ${manifestItems}
+//             <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+//             <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+//         </manifest>
+//         <spine toc="ncx">
+//             ${spineItems}
+//         </spine>
+//     </package>`;
+
+//   return contentOpf;
+// }
 
 function generateContentOpf(
   metadata,
@@ -83,10 +151,22 @@ function generateContentOpf(
     manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
   }
 
+  // 添加OEBPS/images目录中的所有图片到manifest
+  const imagesDir = "OEBPS/images";
+  if (fs.existsSync(imagesDir)) {
+    const imageFiles = fs.readdirSync(imagesDir);
+    imageFiles.forEach((file, index) => {
+      const mediaType = getMediaType(file);
+      manifestItems += `<item id="image${
+        index + 1
+      }" href="images/${file}" media-type="${mediaType}"/>\n`;
+    });
+  }
+
   // 添加其他资源到manifest
   resourcePaths.forEach((resourcePath, index) => {
     const resourceName = path.basename(resourcePath);
-    const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
+    const mediaType = getMediaType(resourcePath); // 根据文件扩展名获取正确的媒体类型
     manifestItems += `<item id="res${
       index + 1
     }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
@@ -101,7 +181,7 @@ function generateContentOpf(
             <dc:title>${metadata.title}</dc:title>
             <dc:creator>${metadata.author}</dc:creator>
             <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
-            <dc:language>en</dc:language> <!-- 添加书籍语言 -->
+            <dc:language>en</dc:language>
             <meta property="dcterms:modified">${formattedDate}</meta>
         </metadata>
         <manifest>
@@ -115,6 +195,25 @@ function generateContentOpf(
     </package>`;
 
   return contentOpf;
+}
+
+// 根据文件扩展名获取媒体类型
+function getMediaType(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  switch (extension) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    // 添加其他常见的媒体类型
+    default:
+      return "application/octet-stream";
+  }
 }
 
 function generateTocNcx(htmlFiles, titles, uuid) {
@@ -216,24 +315,99 @@ function countMarkdownFiles(directory) {
   return count;
 }
 
-async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, processedFiles) {
+async function processImageReferences(
+  zip,
+  markdownDir,
+  epubDir,
+  markdownFilePath
+) {
+  const markdownContent = await fs.promises.readFile(markdownFilePath, "utf-8");
+  const pattern = /!\[[^\]]*\]\((.*?)\)/g;
+  const matches = markdownContent.match(pattern);
+
+  if (matches) {
+    const epubBaseDir = "OEBPS";
+    for (const match of matches) {
+      const imagePath = match.match(/\((.*?)\)/)[1];
+      const normalizedImagePath = path.normalize(imagePath);
+      const absoluteImagePath = path.join(markdownDir, normalizedImagePath);
+
+      // 检查原图片资源是否存在
+      if (fs.existsSync(absoluteImagePath)) {
+        const imageDestPath = path.join(
+          epubBaseDir,
+          "images",
+          path.basename(normalizedImagePath)
+        );
+
+        // 确保目标目录存在
+        await fs.promises.mkdir(path.dirname(imageDestPath), {
+          recursive: true,
+        });
+
+        await fs.promises.copyFile(absoluteImagePath, imageDestPath);
+        console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
+        // replace backslashes with forward slashes
+        const imageDestPathNormalized = imageDestPath.replace(/\\/g, "/");
+        zip.file(imageDestPathNormalized, fs.readFileSync(imageDestPath));
+      } else {
+        console.warn(`图片不存在: ${absoluteImagePath}`);
+      }
+    }
+  }
+}
+
+async function processMarkdownFiles(
+  zip,
+  markdownDir,
+  epubDir,
+  htmlFiles,
+  titles,
+  processedFiles
+) {
   const files = fs.readdirSync(markdownDir);
-  const markdownFiles = files.filter(file => path.extname(file) === '.md');
+  const markdownFiles = files.filter((file) => path.extname(file) === ".md");
 
   const convertQueue = async.queue(async (file, callback) => {
     const filePath = path.join(markdownDir, file);
-    const htmlFilename = `${path.basename(file, '.md')}.xhtml`;
+    const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
     const htmlFilePath = path.join(epubDir, htmlFilename);
     console.log(`转换Markdown文件: ${filePath}`);
     await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
-    const filePathInEpub = path.relative(epubDir, htmlFilePath);
-    htmlFiles.push(filePathInEpub);
-    titles.push(path.basename(file, '.md'));
+
+    // 处理 Markdown 文件中的图片引用
+    await processImageReferences(zip, markdownDir, epubDir, filePath);
+
+    let htmlFileFullName = path.join(epubDir, htmlFilename);
+    // replace backslashes with forward slashes
+    htmlFileFullName = htmlFileFullName.replace(/\\/g, "/");
+    const htmlFileRelativePath = path.relative(epubDir, htmlFilename);
+    console.log(
+      `添加文件到EPUB: `,
+      htmlFileFullName,
+      htmlFileRelativePath,
+      htmlFilePath,
+      htmlFilename
+    );
+    try {
+      const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
+      zip.file(htmlFileFullName, content); // 确保文件路径正确
+    } catch (error) {
+      console.error(`Error adding file to EPUB: ${error}`);
+    }
+
+    htmlFiles.push(htmlFileFullName.replace("OEBPS/", ""));
+    titles.push(path.basename(file, ".md"));
     processedFiles.count++;
-    const percentage = ((processedFiles.count / processedFiles.total) * 100).toFixed(2);
-    console.log(`转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`);
+    const percentage = (
+      (processedFiles.count / processedFiles.total) *
+      100
+    ).toFixed(2);
+    console.log(
+      `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
+    );
     callback();
-  }, 15);
+  }, 1);
 
   convertQueue.push(markdownFiles);
 
@@ -248,7 +422,14 @@ async function processMarkdownFiles(markdownDir, epubDir, htmlFiles, titles, pro
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
       console.log(`创建子目录: ${subDir}`);
-      await processMarkdownFiles(filePath, subDir, htmlFiles, titles, processedFiles);
+      await processMarkdownFiles(
+        zip,
+        filePath,
+        subDir,
+        htmlFiles,
+        titles,
+        processedFiles
+      );
     }
   }
 }
@@ -270,18 +451,22 @@ async function createEpub(
 
   const epubDir = "OEBPS";
   console.log(`创建EPUB目录: ${epubDir}`);
-  await ensureDirExists(epubDir);
+  await cleanDirectory(epubDir);
+  await ensureDirectoryExists(epubDir);
 
   console.log("处理Markdown文件...");
   const totalFiles = countMarkdownFiles(markdownDir);
   const processedFiles = { count: 0, total: totalFiles };
   await processMarkdownFiles(
+    zip,
     markdownDir,
     epubDir,
     htmlFiles,
     titles,
     processedFiles
   );
+
+  await addCoverAndResources(zip, coverImagePath, resourcePaths);
 
   console.log("生成content.opf...");
   const uuid = uuidv4();
@@ -333,14 +518,23 @@ async function validateEpub(epubPath) {
 }
 
 // 示例用法
-const markdownDir = "markdown/rolldown"; // 替换为实际的Markdown文件夹路径
+const markdownDir = "markdown/mdExample"; // 替换为实际的Markdown文件夹路径
 const epubPath = "output.epub";
 const metadata = {
   title: "电子书标题",
   author: "作者",
 };
 
-createEpub(markdownDir, epubPath, metadata);
+// const coverImagePath = "cover.jpg"; // 封面图片路径
+// const resourcePaths = ["OEBPS/images"]; // 资源文件路径
+
+createEpub(
+  markdownDir,
+  epubPath,
+  metadata
+  // coverImagePath,
+  // resourcePaths
+).catch(console.error);
 
 async function createEpubFromMarkdown(
   markdownFiles,
@@ -354,7 +548,8 @@ async function createEpubFromMarkdown(
   initializeEpubStructure(zip);
 
   const htmlFiles = [];
-  await ensureDirExists("OEBPS");
+  await cleanDirectory("OEBPS");
+  await ensureDirectoryExists("OEBPS");
   for (const file of markdownFiles) {
     const htmlFilename = path.basename(file, ".md") + ".html";
     await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
