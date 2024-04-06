@@ -5,7 +5,6 @@ const JSZip = require("jszip");
 const { exec, execSync } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
 const { promisify } = require("util");
-const { dir } = require("console");
 
 const execAsync = promisify(exec);
 
@@ -55,12 +54,14 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   try {
     if (coverImagePath) {
       const coverImageContent = fs.readFileSync(coverImagePath);
+      await ensureDirectoryExists("OEBPS/images");
       zip.file("OEBPS/images/cover.jpg", coverImageContent);
     }
 
     for (const resourcePath of resourcePaths) {
       const resourceName = path.basename(resourcePath);
       const resourceContent = fs.readFileSync(resourcePath);
+      await ensureDirectoryExists("OEBPS/images");
       zip.file(`OEBPS/images/${resourceName}`, resourceContent);
     }
   } catch (error) {
@@ -246,7 +247,9 @@ async function processImageReferences(markdownDir, epubDir, markdownFilePath) {
         );
 
         // 确保目标目录存在
-        await fs.promises.mkdir(path.dirname(imageDestPath), { recursive: true });
+        await fs.promises.mkdir(path.dirname(imageDestPath), {
+          recursive: true,
+        });
 
         await fs.promises.copyFile(absoluteImagePath, imageDestPath);
         console.log(`复制图片: ${normalizedImagePath} -> ${imageDestPath}`);
@@ -258,6 +261,7 @@ async function processImageReferences(markdownDir, epubDir, markdownFilePath) {
 }
 
 async function processMarkdownFiles(
+  zip,
   markdownDir,
   epubDir,
   htmlFiles,
@@ -277,8 +281,23 @@ async function processMarkdownFiles(
     // 处理 Markdown 文件中的图片引用
     await processImageReferences(markdownDir, epubDir, filePath);
 
-    const filePathInEpub = path.relative(epubDir, htmlFilePath);
-    htmlFiles.push(filePathInEpub);
+    const htmlFileFullName = path.join(epubDir, htmlFilename);
+    const htmlFileRelativePath = path.relative(epubDir, htmlFilename);
+    console.log(
+      `添加文件到EPUB: `,
+      htmlFileFullName,
+      htmlFileRelativePath,
+      htmlFilePath,
+      htmlFilename
+    );
+    const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
+    try {
+      zip.file(htmlFileFullName, content); // 确保文件路径正确
+    } catch (error) {
+      console.error(`Error adding file to EPUB: ${error}`);
+    }
+
+    htmlFiles.push(htmlFilename);
     titles.push(path.basename(file, ".md"));
     processedFiles.count++;
     const percentage = (
@@ -289,7 +308,7 @@ async function processMarkdownFiles(
       `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
     );
     callback();
-  }, 15);
+  }, 1);
 
   convertQueue.push(markdownFiles);
 
@@ -339,12 +358,15 @@ async function createEpub(
   const totalFiles = countMarkdownFiles(markdownDir);
   const processedFiles = { count: 0, total: totalFiles };
   await processMarkdownFiles(
+    zip,
     markdownDir,
     epubDir,
     htmlFiles,
     titles,
     processedFiles
   );
+
+  await addCoverAndResources(zip, coverImagePath, resourcePaths);
 
   console.log("生成content.opf...");
   const uuid = uuidv4();
@@ -403,7 +425,16 @@ const metadata = {
   author: "作者",
 };
 
-createEpub(markdownDir, epubPath, metadata);
+// const coverImagePath = "cover.jpg"; // 封面图片路径
+// const resourcePaths = ["OEBPS/images"]; // 资源文件路径
+
+createEpub(
+  markdownDir,
+  epubPath,
+  metadata
+  // coverImagePath,
+  // resourcePaths
+).catch(console.error);
 
 async function createEpubFromMarkdown(
   markdownFiles,
