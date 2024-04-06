@@ -9,8 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "async": "^3.2.5",
     "dotenv": "^16.4.5",
     "highlight.js": "^11.9.0",
+    "jszip": "^3.10.1",
     "uuid": "^9.0.1"
   }
 }
