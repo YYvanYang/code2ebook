@@ -1,7 +1,11 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync, spawn } = require("child_process");
+const { exec, execSync, spawn } = require("child_process");
 const dotenv = require("dotenv");
+// const zlib = require("zlib");
+const { promisify } = require("util");
+
+const execAsync = promisify(exec);
 
 // 加载环境变量
 dotenv.config();
@@ -81,6 +85,23 @@ function processFilesImproved(
   });
 }
 
+async function validateEpub(epubPath) {
+  try {
+    console.log("正在使用 EPUBCheck 校验生成的 EPUB 文件...");
+    const { stdout, stderr } = await execAsync(
+      `java -jar epubcheck-5.1.0/epubcheck.jar "${epubPath}"`
+    );
+    console.log("EPUBCheck 校验结果:");
+    console.log(stdout);
+    if (stderr) {
+      console.error("EPUBCheck 错误:");
+      console.error(stderr);
+    }
+  } catch (error) {
+    console.error("EPUBCheck 执行失败:", error);
+  }
+}
+
 async function generateEpub(repoName, author, chapters) {
   const timestamp = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
   const epubFileName = `${repoName}_${timestamp}.epub`;
@@ -131,6 +152,7 @@ async function generateEpub(repoName, author, chapters) {
       const epubFilePath = path.join(process.cwd(), epubFileName);
       console.log(`生成的EPUB: ${epubFileName}`);
       console.log(`EPUB文件路径: ${epubFilePath}`);
+      validateEpub(epubFilePath);
     } else {
       console.error(`Pandoc进程退出，代码 ${code}`);
     }
