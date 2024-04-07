@@ -54,23 +54,55 @@ function codeToMarkdown(content, language) {
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
+function shouldExclude(file, excludeDirs, excludeFiles, excludeExtensions) {
+  if (file.startsWith(".")) {
+    return true;
+  }
+  if (excludeDirs.includes(file)) {
+    return true;
+  }
+  if (excludeFiles.includes(file)) {
+    return true;
+  }
+  const extension = path.extname(file);
+  if (excludeExtensions.includes(extension)) {
+    return true;
+  }
+  return false;
+}
+
 function processFilesImproved(
   dir,
   chapters,
   fullRepoDir,
-  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"]
+  codeExtensions = [
+    ".js",
+    ".ts",
+    ".py",
+    ".jsx",
+    ".tsx",
+    ".rs",
+    ".sql",
+    ".json",
+  ],
+  excludeDirs = ["node_modules", ".git"],
+  excludeFiles = [".gitignore"],
+  excludeExtensions = [".lock", ".toml", ".yaml", ".yml"]
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
     const filePath = path.join(dir, file);
     const stats = fs.statSync(filePath);
     if (stats.isDirectory()) {
-      processFilesImproved(filePath, chapters, fullRepoDir, codeExtensions);
+      if (!shouldExclude(file, excludeDirs, excludeFiles, excludeExtensions)) {
+        processFilesImproved(filePath, chapters, fullRepoDir, codeExtensions, excludeDirs, excludeFiles, excludeExtensions);
+      }
     } else {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const extension = path.extname(file);
-      let chapterContent;
-      if (codeExtensions.includes(extension) || extension === ".md") {
+      if (!shouldExclude(file, excludeDirs, excludeFiles, excludeExtensions)) {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const extension = path.extname(file);
+        let chapterContent;
+
         const language = extension.slice(1);
         chapterContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
@@ -78,7 +110,8 @@ function processFilesImproved(
         const relativePath = path.relative(fullRepoDir, filePath);
         const chapterTitle = relativePath
           .replace(/_/g, " ")
-          .replace(/\//g, " > ");
+          .replace(/\//g, " > ")
+          .replace(/\\/g, " > ");
         chapters.push({ title: chapterTitle, content: chapterContent });
       }
     }
@@ -166,7 +199,16 @@ async function main() {
 
   const fullRepoDir = cloneGitHubRepo(repoUrl, localDir);
   const chapters = [];
-  const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
+  const codeExtensions = [
+    ".js",
+    ".ts",
+    ".py",
+    ".jsx",
+    ".tsx",
+    ".rs",
+    ".sql",
+    ".json",
+  ];
 
   processFilesImproved(fullRepoDir, chapters, fullRepoDir, codeExtensions);
   await generateEpub(repoName, author, chapters);
