@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const { exec, execSync, spawn } = require("child_process");
 const dotenv = require("dotenv");
-// const zlib = require("zlib");
 const { promisify } = require("util");
 
 const execAsync = promisify(exec);
@@ -48,7 +47,7 @@ function codeToMarkdown(content, language) {
   }
   const maxBackticks = (content.match(/`+/g) || []).reduce(
     (max, curr) => Math.max(max, curr.length),
-    0
+    0,
   );
   const backtickSequence = "`".repeat(Math.max(3, maxBackticks + 1));
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
@@ -85,9 +84,14 @@ function processFilesImproved(
     ".sql",
     ".json",
   ],
-  excludeDirs = ["node_modules", ".git"],
-  excludeFiles = [".gitignore"],
-  excludeExtensions = [".lock", ".toml", ".yaml", ".yml"]
+  excludeDirs = ["node_modules", ".git", "docs", "test_data"],
+  excludeFiles = [
+    ".gitignore",
+    "package-lock.json",
+    "yarn.lock",
+    "package.json",
+  ],
+  excludeExtensions = [".lock", ".toml", ".yaml", ".yml"],
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
@@ -95,24 +99,34 @@ function processFilesImproved(
     const stats = fs.statSync(filePath);
     if (stats.isDirectory()) {
       if (!shouldExclude(file, excludeDirs, excludeFiles, excludeExtensions)) {
-        processFilesImproved(filePath, chapters, fullRepoDir, codeExtensions, excludeDirs, excludeFiles, excludeExtensions);
+        processFilesImproved(
+          filePath,
+          chapters,
+          fullRepoDir,
+          codeExtensions,
+          excludeDirs,
+          excludeFiles,
+          excludeExtensions,
+        );
       }
     } else {
       if (!shouldExclude(file, excludeDirs, excludeFiles, excludeExtensions)) {
         const content = fs.readFileSync(filePath, "utf-8");
         const extension = path.extname(file);
         let chapterContent;
-
-        const language = extension.slice(1);
-        chapterContent = codeExtensions.includes(extension)
-          ? codeToMarkdown(content, language)
-          : content;
-        const relativePath = path.relative(fullRepoDir, filePath);
-        const chapterTitle = relativePath
-          .replace(/_/g, " ")
-          .replace(/\//g, " > ")
-          .replace(/\\/g, " > ");
-        chapters.push({ title: chapterTitle, content: chapterContent });
+        if (codeExtensions.includes(extension) || extension === ".md") {
+          console.log("Processing file:", filePath);
+          const language = extension.slice(1);
+          chapterContent = codeExtensions.includes(extension)
+            ? codeToMarkdown(content, language)
+            : content;
+          const relativePath = path.relative(fullRepoDir, filePath);
+          const chapterTitle = relativePath
+            .replace(/_/g, " ")
+            .replace(/\//g, " > ")
+            .replace(/\\/g, " > ");
+          chapters.push({ title: chapterTitle, content: chapterContent });
+        }
       }
     }
   });
@@ -122,7 +136,7 @@ async function validateEpub(epubPath) {
   try {
     console.log("正在使用 EPUBCheck 校验生成的 EPUB 文件...");
     const { stdout, stderr } = await execAsync(
-      `java -jar epubcheck-5.1.0/epubcheck.jar "${epubPath}"`
+      `java -jar epubcheck-5.1.0/epubcheck.jar "${epubPath}"`,
     );
     console.log("EPUBCheck 校验结果:");
     console.log(stdout);
@@ -157,6 +171,7 @@ async function generateEpub(repoName, author, chapters) {
     "-o", epubFileName,
   ];
 
+  console.log("正在生成 EPUB 文件...");
   // 使用spawn启动Pandoc进程
   const pandocProcess = spawn("pandoc", pandocArgs);
 
@@ -172,11 +187,11 @@ async function generateEpub(repoName, author, chapters) {
 
   // 处理输出和错误
   pandocProcess.stdout.on("data", (data) => {
-    console.log(`stdout: ${data}`);
+    // console.log(`stdout: ${data}`);
   });
 
   pandocProcess.stderr.on("data", (data) => {
-    console.error(`stderr: ${data}`);
+    // console.error(`stderr: ${data}`);
   });
 
   // 当Pandoc进程关闭时，检查是否成功生成EPUB文件
@@ -196,7 +211,7 @@ async function main() {
   const repoUrl = process.env.REPO_URL;
   const { repoName, author } = extractRepoDetails(repoUrl);
   const localDir = repoName;
-
+  console.log(`正在克隆 ${repoUrl} 到 ${localDir}...`);
   const fullRepoDir = cloneGitHubRepo(repoUrl, localDir);
   const chapters = [];
   const codeExtensions = [
@@ -209,7 +224,7 @@ async function main() {
     ".sql",
     ".json",
   ];
-
+  console.log("正在处理文件...");
   processFilesImproved(fullRepoDir, chapters, fullRepoDir, codeExtensions);
   await generateEpub(repoName, author, chapters);
 }
