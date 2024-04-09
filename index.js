@@ -44,7 +44,7 @@ function codeToMarkdown(content, language) {
   }
   const maxBackticks = (content.match(/`+/g) || []).reduce(
     (max, curr) => Math.max(max, curr.length),
-    0
+    0,
   );
   const backtickSequence = "`".repeat(Math.max(3, maxBackticks + 1));
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
@@ -54,7 +54,7 @@ function processFilesImproved(
   dir,
   chapters,
   fullRepoDir,
-  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"]
+  codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"],
 ) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
@@ -111,12 +111,12 @@ async function generateEpubAndPdf(repoName, author, chapters) {
     "--metadata", `title=${metadata.title}`,
     "--metadata", `author=${metadata.author}`,
     "--pdf-engine", "xelatex",
-    "-V", "mainfont='DejaVu Serif'",
-    "-V", "monofont='DejaVu Sans Mono'",
+    "-V", `mainfont=${path.join(__dirname, 'fonts', 'dejavu-serif', 'DejaVuSerif.ttf')}`,
+    "-V", `monofont=${path.join(__dirname, 'fonts', 'dejavu-sans-mono', 'DejaVuSansMono.ttf')}`,
     "-V", "papersize=a4",
     "-V", "geometry:margin=2cm",
     "--toc",
-    "--toc-depth", "2", 
+    "--toc-depth", "2",
     "-o", pdfFileName,
   ];
 
@@ -152,7 +152,7 @@ async function generateEpubAndPdf(repoName, author, chapters) {
   const pandocPdfProcess = spawn("pandoc", pandocPdfArgs);
   pandocPdfProcess.stdin.setDefaultEncoding("utf-8");
 
-  // 将每个章节的内容写入Pandoc的stdin  
+  // 将每个章节的内容写入Pandoc的stdin
   chapters.forEach((chapter) => {
     pandocPdfProcess.stdin.write(`# ${chapter.title}\n${chapter.content}\n\n`);
   });
@@ -163,7 +163,7 @@ async function generateEpubAndPdf(repoName, author, chapters) {
     console.log(`stdout: ${data}`);
   });
   pandocPdfProcess.stderr.on("data", (data) => {
-    console.error(`stderr: ${data}`); 
+    console.error(`stderr: ${data}`);
   });
   pandocPdfProcess.on("close", (code) => {
     if (code === 0) {
