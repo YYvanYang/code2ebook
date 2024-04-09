@@ -103,7 +103,6 @@ async function generateEpubAndPdf(repoName, author, chapters) {
     "--toc-depth", "2",
     "-o", epubFileName,
   ];
-
   // prettier-ignore
   const pandocPdfArgs = [
     "-f", "markdown",
@@ -111,9 +110,8 @@ async function generateEpubAndPdf(repoName, author, chapters) {
     "--metadata", `title=${metadata.title}`,
     "--metadata", `author=${metadata.author}`,
     "--pdf-engine", "xelatex",
-    // "-V", `mainfont=${path.join(__dirname, 'fonts', 'dejavu-serif', 'DejaVuSerif.ttf')}`,
-    // "-V", `monofont={${path.join(__dirname, 'fonts', 'DejaVu Sans Mono.ttf')}}`,
-    // "-V", `monofont=${path.join(__dirname, 'fonts', 'dejavu-sans-mono', 'DejaVuSansMono.ttf')}`,
+    "-V", `mainfont:DejaVuSerif.ttf`,
+    "-V", `monofont:DejaVuSansMono.ttf`,
     "-V", "papersize=a4",
     "-V", "geometry:margin=2cm",
     "--toc",
