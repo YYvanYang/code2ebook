@@ -5,8 +5,8 @@ const JSZip = require("jszip");
 const { exec, execSync } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
 const { promisify } = require("util");
-const http = require('http');
-const https = require('https');
+const http = require("http");
+const https = require("https");
 
 const execAsync = promisify(exec);
 
@@ -400,15 +400,20 @@ async function processMarkdownFiles(
   }
 }
 
+// 修复后的 downloadImage 函数
 async function downloadImage(url, dest, timeout = 10000) {
   return new Promise((resolve, reject) => {
     try {
       const parsedUrl = new URL(url);
-      const protocol = parsedUrl.protocol === 'https:' ? https : http;
+      const protocol = parsedUrl.protocol === "https:" ? https : http;
 
       const requestOptions = {
-        method: 'GET',
+        method: "GET",
         timeout: timeout,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        },
       };
 
       const request = protocol.request(url, requestOptions, (response) => {
@@ -434,62 +439,76 @@ async function downloadImage(url, dest, timeout = 10000) {
                 fileExtension = ".svg";
                 break;
               default:
-                fileExtension = path.extname(dest);
+                fileExtension = path.extname(parsedUrl.pathname) || ".jpg"; // 默认使用.jpg
             }
           } else {
-            fileExtension = path.extname(dest);
+            fileExtension = path.extname(parsedUrl.pathname);
           }
 
-          const { dir, name } = path.parse(dest);
-          const destWithExtension = path.format({ dir, name, ext: fileExtension });
+          // 检查目标路径是否已经包含了正确的文件扩展名
+          const destExtension = path.extname(dest);
+          const destBaseName = path.basename(dest, destExtension);
+          const destWithExtension =
+            destExtension === fileExtension
+              ? dest
+              : path.format({
+                  dir: path.dirname(dest),
+                  name: destBaseName,
+                  ext: fileExtension,
+                });
 
           const fileStream = fs.createWriteStream(destWithExtension);
           response.pipe(fileStream);
 
-          fileStream.on('finish', () => {
+          fileStream.on("finish", () => {
             fileStream.close();
             resolve(destWithExtension);
           });
         } else if (response.statusCode >= 300 && response.statusCode < 400) {
           const redirectUrl = response.headers.location;
           if (redirectUrl) {
-            console.log(`图片重定向: ${url} -> ${redirectUrl}`);
-            downloadImage(redirectUrl, dest, timeout).then(resolve).catch(reject);
+            downloadImage(redirectUrl, dest, timeout)
+              .then(resolve)
+              .catch(reject);
           } else {
-            reject(new Error(`无法重定向图片. 状态码: ${response.statusCode}, URL: ${url}`));
+            reject(
+              new Error(
+                `无法重定向图片. 状态码: ${response.statusCode}, URL: ${url}`
+              )
+            );
           }
         } else {
-          reject(new Error(`无法下载图片. 状态码: ${response.statusCode}, URL: ${url}`));
+          reject(
+            new Error(
+              `无法下载图片. 状态码: ${response.statusCode}, URL: ${url}`
+            )
+          );
         }
       });
 
-      request.on('error', (error) => {
+      request.on("error", (error) => {
         reject(error);
       });
 
-      request.on('timeout', () => {
+      request.on("timeout", () => {
         request.destroy();
         reject(new Error(`下载图片超时. URL: ${url}`));
       });
 
       request.end();
     } catch (error) {
-      if (error.code === 'ERR_INVALID_URL') {
-        console.error(`无效的图片URL: ${url}`);
-        reject(new Error(`无效的图片URL: ${url}`));
-      } else {
-        reject(error);
-      }
+      reject(error);
     }
   });
 }
 
+// 调整 processImages 函数以解决文件名重复问题
 async function processImages(zip, epubDir, htmlFiles) {
   const imageFiles = [];
 
   for (const htmlFile of htmlFiles) {
     const htmlFilePath = path.join(epubDir, htmlFile);
-    let htmlContent = await fs.promises.readFile(htmlFilePath, 'utf-8');
+    let htmlContent = await fs.promises.readFile(htmlFilePath, "utf-8");
 
     const imgPattern = /<img[^>]+src="([^"]+)"[^>]*>/g;
     let match;
@@ -498,21 +517,40 @@ async function processImages(zip, epubDir, htmlFiles) {
       const src = match[1];
 
       if (src.startsWith("http")) {
-        const imageName = path.basename(src).replace(/[^a-zA-Z0-9\.]/g, '_');
-        const imageDestPath = path.join(epubDir, "images", imageName);
+        // 使用URL的pathname和search部分生成唯一文件名
+        const urlObj = new URL(src);
+        const imageName =
+          path.basename(urlObj.pathname) +
+          (urlObj.search
+            ? "_" +
+              encodeURIComponent(urlObj.search).replace(/[^a-zA-Z0-9]/g, "_")
+            : "");
+        const imageDestPath = path.join(
+          epubDir,
+          "images",
+          imageName.replace(/[^a-zA-Z0-9\.]/g, "_")
+        );
 
         try {
-          await downloadImage(src, imageDestPath);
-          console.log(`下载图片: ${src} -> ${imageDestPath}`);
-          
-          const localImagePath = path.join("images", imageName).replace(/\\/g, "/");
-          htmlContent = htmlContent.replace(match[0], `<img src="${localImagePath}"`);
+          const downloadedImagePath = await downloadImage(src, imageDestPath);
+          console.log(`下载图片: ${src} -> ${downloadedImagePath}`);
+
+          const localImagePath = path
+            .relative(epubDir, downloadedImagePath)
+            .replace(/\\/g, "/");
+          htmlContent = htmlContent.replace(
+            match[0],
+            `<img src="${localImagePath}" alt="">`
+          );
 
           imageFiles.push(localImagePath);
-          zip.file(path.join(epubDir, localImagePath), fs.readFileSync(imageDestPath));
+          zip.file(localImagePath, fs.readFileSync(downloadedImagePath));
         } catch (error) {
           console.error(`图片下载失败: ${src}. 使用占位符替换.`, error);
-          htmlContent = htmlContent.replace(match[0], `<img src="images/placeholder.svg"`);
+          htmlContent = htmlContent.replace(
+            match[0],
+            `<img src="images/placeholder.svg" alt="">`
+          );
         }
       } else {
         const normalizedImagePath = path.normalize(src);
@@ -520,20 +558,26 @@ async function processImages(zip, epubDir, htmlFiles) {
 
         if (fs.existsSync(absoluteImagePath)) {
           console.log(`本地图片已存在: ${absoluteImagePath}`);
-          
+
           const epubImagePath = normalizedImagePath.replace(/\\/g, "/");
-          htmlContent = htmlContent.replace(match[0], `<img src="${epubImagePath}"`);
+          htmlContent = htmlContent.replace(
+            match[0],
+            `<img src="${epubImagePath}" alt="">`
+          );
 
           imageFiles.push(epubImagePath);
           zip.file(absoluteImagePath, fs.readFileSync(absoluteImagePath));
         } else {
           console.warn(`本地图片不存在: ${absoluteImagePath}. 使用占位符替换.`);
-          htmlContent = htmlContent.replace(match[0], `<img src="images/placeholder.svg"`);
+          htmlContent = htmlContent.replace(
+            match[0],
+            `<img src="images/placeholder.svg" alt="">`
+          );
         }
       }
     }
 
-    await fs.promises.writeFile(htmlFilePath, htmlContent, 'utf-8');
+    await fs.promises.writeFile(htmlFilePath, htmlContent, "utf-8");
   }
 
   return imageFiles;
