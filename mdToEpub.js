@@ -522,6 +522,13 @@ async function processImages(zip, epubDir, htmlFiles) {
 
   for (const htmlFile of htmlFiles) {
     const htmlFilePath = path.join(epubDir, htmlFile);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(htmlFilePath)) {
+      console.warn(`XHTML文件不存在，跳过处理: ${htmlFilePath}`);
+      continue;
+    }
+
     let htmlContent = await fs.promises.readFile(htmlFilePath, "utf-8");
 
     const imgPattern = /<img[^>]+src="([^"]+)"[^>]*>/g;
