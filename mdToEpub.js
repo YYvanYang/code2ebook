@@ -210,6 +210,21 @@ function generateContentOpf(
 function getMediaType(filePath) {
   const extension = path.extname(filePath).toLowerCase();
   switch (extension) {
+    // case "image/jpeg":
+    //             fileExtension = ".jpg";
+    //             break;
+    //           case "image/png":
+    //             fileExtension = ".png";
+    //             break;
+    //           case "image/gif":
+    //             fileExtension = ".gif";
+    //             break;
+    //           case "image/webp":
+    //             fileExtension = ".webp";
+    //             break;
+    //           case "image/svg+xml":
+    //           case "image/svg+xml;charset=utf-8":
+    //             fileExtension = ".svg";
     case ".jpg":
     case ".jpeg":
       return "image/jpeg";
@@ -219,6 +234,8 @@ function getMediaType(filePath) {
       return "image/gif";
     case ".webp":
       return "image/webp";
+    case ".svg":
+      return "image/svg+xml";
     default:
       return "application/octet-stream";
   }
@@ -331,65 +348,38 @@ async function createPlaceholderImage(width, height, text) {
   await fs.promises.writeFile(placeholder, svg, "utf-8");
 }
 
-async function processMarkdownFiles(
-  zip,
-  markdownDir,
-  epubDir,
-  htmlFiles,
-  titles,
-  processedFiles
-) {
+async function processMarkdownFiles(zip, markdownDir, epubDir, htmlFiles, titles, processedFiles) {
   const files = fs.readdirSync(markdownDir);
   const markdownFiles = files.filter((file) => path.extname(file) === ".md");
 
   await createPlaceholderImage(400, 300, "Placeholder");
-  zip.file(
-    "OEBPS/images/placeholder.svg",
-    fs.readFileSync("OEBPS/images/placeholder.svg")
-  );
+  zip.file("OEBPS/images/placeholder.svg", fs.readFileSync("OEBPS/images/placeholder.svg"));
 
-  const convertQueue = async.queue(async (file, callback) => {
+  for (const file of markdownFiles) {
     const filePath = path.join(markdownDir, file);
     const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
     const htmlFilePath = path.join(epubDir, htmlFilename);
+
     try {
       console.log(`转换Markdown文件: ${filePath}`);
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
-      let htmlFileFullName = path.join(epubDir, htmlFilename);
-      htmlFileFullName = htmlFileFullName.replace(/\\/g, "/");
+      // 保存HTML文件路径而不是立即添加到zip
+      // htmlFiles.push(htmlFilePath.replace("OEBPS/", ""));
+      // 正确的方式，确保不重复添加基目录前缀
+      htmlFiles.push(htmlFilePath.replace(epubDir + path.sep, ""));
+      console.log(`添加HTML文件1111: ${htmlFilePath}`);
 
-      const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
-      zip.file(htmlFileFullName, content);
+      let title = path.basename(htmlFilename, ".xhtml");
+      titles.push(title);
 
-      htmlFiles.push(htmlFileFullName.replace("OEBPS/", ""));
-      let relativePathOfHtmlPath = htmlFileFullName.replace("OEBPS/", "");
-      relativePathOfHtmlPath = relativePathOfHtmlPath.replace(/\\/g, " > ");
-      relativePathOfHtmlPath = relativePathOfHtmlPath.replace(/\//g, " > ");
-      relativePathOfHtmlPath = relativePathOfHtmlPath.replace(".xhtml", "");
-
-      titles.push(relativePathOfHtmlPath);
-      console.log(`添加章节标题: `, relativePathOfHtmlPath);
       processedFiles.count++;
-      const percentage = (
-        (processedFiles.count / processedFiles.total) *
-        100
-      ).toFixed(2);
-      console.log(
-        `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
-      );
+      const percentage = ((processedFiles.count / processedFiles.total) * 100).toFixed(2);
+      console.log(`转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`);
     } catch (error) {
       console.error(`Error adding file to EPUB: ${error}`);
     }
-
-    callback();
-  }, 15);
-
-  convertQueue.push(markdownFiles);
-
-  await new Promise((resolve) => {
-    convertQueue.drain(resolve);
-  });
+  }
 
   for (const file of files) {
     const filePath = path.join(markdownDir, file);
@@ -397,15 +387,7 @@ async function processMarkdownFiles(
     if (stats.isDirectory()) {
       const subDir = path.join(epubDir, file);
       fs.mkdirSync(subDir, { recursive: true });
-      console.log(`创建子目录: ${subDir}`);
-      await processMarkdownFiles(
-        zip,
-        filePath,
-        subDir,
-        htmlFiles,
-        titles,
-        processedFiles
-      );
+      await processMarkdownFiles(zip, filePath, subDir, htmlFiles, titles, processedFiles);
     }
   }
 }
@@ -601,64 +583,50 @@ async function processImages(zip, epubDir, htmlFiles) {
   return imageFiles;
 }
 
-async function createEpub(
-  markdownDir,
-  epubPath,
-
-  metadata,
-  coverImagePath,
-  resourcePaths = []
-) {
+async function createEpub(markdownDir, epubPath, metadata, coverImagePath, resourcePaths = []) {
   console.log("开始创建EPUB...");
 
   const zip = new JSZip();
   initializeEpubStructure(zip);
 
   const htmlFiles = [];
-
   const titles = [];
-
   const epubDir = "OEBPS";
-  console.log(`创建EPUB目录: ${epubDir}`);
   await cleanDirectory(epubDir);
   await ensureDirectoryExists(epubDir);
 
   try {
+
+    // OEBPS/images/placeholder.svg
     console.log("处理Markdown文件...");
     const totalFiles = countMarkdownFiles(markdownDir);
     const processedFiles = { count: 0, total: totalFiles };
-    await processMarkdownFiles(
-      zip,
-      markdownDir,
-      epubDir,
-      htmlFiles,
-      titles,
-      processedFiles
-    );
+    await processMarkdownFiles(zip, markdownDir, epubDir, htmlFiles, titles, processedFiles);
 
     console.log("处理图片资源...");
-    const imageFiles = await processImages(zip, epubDir, htmlFiles);
+    const imageFiles = await processImages(zip, epubDir, htmlFiles); // 更新HTML文件以包含下载的图片
+    // add placeholder image
+    // images/placeholder.svg
+    const uniqueImageFiles = [...new Set(imageFiles), "images/placeholder.svg"]; // 去除重复的图片文件
 
-    await addCoverAndResources(zip, coverImagePath, resourcePaths);
+    // 将更新后的HTML文件添加到zip
+    for (const htmlFile of htmlFiles) {
+      const fullHtmlPath = path.join(epubDir, htmlFile).replace(/\//g, path.sep);
+      console.log(`添加HTML文件到EPUB: ${fullHtmlPath}`);
+      const htmlContent = await fs.promises.readFile(fullHtmlPath, "utf-8");
+      console.log(`添加HTML文件到EPUB2: ${htmlFile}`);
+      zip.file(fullHtmlPath.replace(/\\/g, "/"), htmlContent);
+    }
 
-    console.log("生成content.opf...");
+    // 继续之前的EPUB创建流程...
     const uuid = uuidv4();
-    const contentOpf = generateContentOpf(
-      metadata,
-      htmlFiles,
-      imageFiles,
-      coverImagePath,
-      resourcePaths,
-      uuid
-    );
+    const contentOpf = generateContentOpf(metadata, htmlFiles, [...uniqueImageFiles], coverImagePath, resourcePaths, uuid);
     zip.file("OEBPS/content.opf", contentOpf);
 
-    console.log("生成toc.xhtml...");
     const tocXhtml = generateTocXhtml(htmlFiles, titles);
     zip.file("OEBPS/toc.xhtml", tocXhtml);
 
-    console.log("生成toc.ncx...");
-    const tocNcx = generateTocNcx(htmlFiles, titles, uuid);
+    const tocNcx = generateTocNcx(htmlFiles, titles, uuid, metadata);
     zip.file("OEBPS/toc.ncx", tocNcx);
 
     console.log("生成EPUB文件...");
@@ -668,7 +636,7 @@ async function createEpub(
     });
 
     console.log("开始校验EPUB...");
-    return validateEpub(epubPath);
+    validateEpub(epubPath); // 假设存在此函数
   } catch (error) {
     console.error("EPUB创建失败:", error);
   }
