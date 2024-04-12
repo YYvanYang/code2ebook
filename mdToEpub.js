@@ -98,20 +98,58 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 }
 
 async function downloadImage(url, dest) {
-  const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-  });
+  try {
+    const response = await axios({
+      url,
+      method: "GET",
+      responseType: "stream",
+    });
 
-  const writer = fs.createWriteStream(dest);
+    const contentType = response.headers["content-type"];
+    let fileExtension = "";
 
-  response.data.pipe(writer);
+    if (contentType) {
+      // 根据 Content-Type 推断文件后缀
+      switch (contentType) {
+        case "image/jpeg":
+          fileExtension = ".jpg";
+          break;
+        case "image/png":
+          fileExtension = ".png";
+          break;
+        case "image/gif":
+          fileExtension = ".gif";
+          break;
+        case "image/webp":
+          fileExtension = ".webp";
+          break;
+        // 添加其他图片类型的判断...
+        default:
+          fileExtension = ".jpg"; // 默认使用 .jpg 作为后缀
+      }
+    } else {
+      console.warn(
+        `无法获取图片的 Content-Type: ${url}. 使用默认的 .jpg 后缀.`,
+      );
+      fileExtension = ".jpg";
+    }
 
-  return new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
+    // 确保目标路径包含正确的文件后缀
+    const destWithExtension = dest.endsWith(fileExtension)
+      ? dest
+      : dest + fileExtension;
+
+    const writer = fs.createWriteStream(destWithExtension);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+      writer.on("finish", resolve);
+      writer.on("error", reject);
+    });
+  } catch (error) {
+    console.error(`图片下载失败: ${url}. Error: ${error.message}`);
+    throw error;
+  }
 }
 
 async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
@@ -339,14 +377,35 @@ async function processImageReferences(
       if (imagePath.startsWith("http")) {
         // 下载网络图片
         const filename = path.basename(imagePath);
-        const imageDestPath = path.join(epubBaseDir, "images", filename);
+        const fileExtension = path.extname(filename);
+
+        let imageDestPath;
+        if (fileExtension) {
+          imageDestPath = path.join(epubBaseDir, "images", filename);
+        } else {
+          // 对于没有后缀的图片链接,使用一个临时的文件名
+          const tempFilename = `temp_${Date.now()}`;
+          imageDestPath = path.join(epubBaseDir, "images", tempFilename);
+        }
+
         try {
           await downloadImage(imagePath, imageDestPath);
-          console.log(`下载图片成功: ${imagePath} -> ${imageDestPath}`);
-          zip.file(imageDestPath, fs.readFileSync(imageDestPath));
+
+          // 下载成功后,获取实际的文件后缀,并重命名文件
+          const actualExtension = path.extname(imageDestPath);
+          const newFilename = `${path.basename(imageDestPath, actualExtension)}${actualExtension}`;
+          const newImageDestPath = path.join(
+            epubBaseDir,
+            "images",
+            newFilename,
+          );
+          await fs.promises.rename(imageDestPath, newImageDestPath);
+
+          console.log(`下载图片成功: ${imagePath} -> ${newImageDestPath}`);
+          zip.file(newImageDestPath, fs.readFileSync(newImageDestPath));
 
           // 更新markdown内容中的图片引用为本地路径
-          const localImagePath = path.join("images", filename);
+          const localImagePath = path.join("images", newFilename);
           markdownContent = markdownContent.replace(imagePath, localImagePath);
         } catch (err) {
           console.error(`下载图片失败: ${imagePath}. 使用占位符替换.`);
