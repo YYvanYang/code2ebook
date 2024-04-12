@@ -27,7 +27,6 @@ async function cleanDirectory(directory) {
 }
 
 function addEpubNamespaceToHtml(htmlContent) {
-
   // 使用正则表达式查找<html>标签
   const htmlRegex = /<html(\s+[^>]*)?>/i;
   const match = htmlContent.match(htmlRegex);
@@ -36,21 +35,27 @@ function addEpubNamespaceToHtml(htmlContent) {
     const htmlTag = match[0];
 
     // 检查是否已经存在epub命名空间
-    if (!htmlTag.includes('xmlns:epub')) {
+    if (!htmlTag.includes("xmlns:epub")) {
       // 如果不存在，则添加epub命名空间
-      const modifiedHtmlTag = htmlTag.replace(/>$/, ' xmlns:epub="http://www.idpf.org/2007/ops">');
-      const modifiedHtmlContent = htmlContent.replace(htmlRegex, modifiedHtmlTag);
+      const modifiedHtmlTag = htmlTag.replace(
+        />$/,
+        ' xmlns:epub="http://www.idpf.org/2007/ops">',
+      );
+      const modifiedHtmlContent = htmlContent.replace(
+        htmlRegex,
+        modifiedHtmlTag,
+      );
 
       return modifiedHtmlContent;
     }
-  } 
+  }
   return htmlContent;
 }
 
 function replaceAlign(html) {
   // 使用正则表达式匹配 <p> 标签中的 align 属性
   const regex = /(<p\b[^>]*?\s)align=["']center["']([^>]*>)/gi;
-  
+
   // 将匹配到的 align 属性替换为 style="text-align: center;"
   return html.replace(regex, '$1style="text-align: center;"$2');
 }
@@ -59,7 +64,7 @@ function replaceAlign(html) {
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
-      `pandoc "${inputPath}" -f markdown -t html5 -s -o "${outputPath}"`
+      `pandoc "${inputPath}" -f markdown -t html5 -s -o "${outputPath}"`,
     );
 
     // 读取生成的 HTML 文件
@@ -71,8 +76,6 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 
     // 将 <p align="center"> 标签替换为 <p style="text-align: center;">
     htmlContent = replaceAlign(htmlContent);
-
-
 
     // 将修改后的内容写回文件
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
@@ -101,70 +104,12 @@ async function addCoverAndResources(zip, coverImagePath, resourcePaths) {
   }
 }
 
-// function generateContentOpf(
-//   metadata,
-//   htmlFiles,
-//   coverImagePath,
-//   resourcePaths,
-//   uuid
-// ) {
-//   let manifestItems = "";
-//   let spineItems = "";
-
-//   // 为每个HTML文件创建manifest项
-//   htmlFiles.forEach((file, index) => {
-//     const id = `item${index + 1}`;
-//     const href = `${file}`; // 确保引用的路径是正确的
-//     manifestItems += `<item id="${id}" href="${href}" media-type="application/xhtml+xml"/>\n`;
-//     spineItems += `<itemref idref="${id}"/>\n`;
-//   });
-
-//   // 如果存在封面图像，添加到manifest
-//   if (coverImagePath) {
-//     const coverImageName = path.basename(coverImagePath);
-//     manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
-//   }
-
-//   // 添加其他资源到manifest
-//   resourcePaths.forEach((resourcePath, index) => {
-//     const resourceName = path.basename(resourcePath);
-//     const mediaType = "image/jpeg"; // 假设所有资源都是JPEG图像，您可能需要根据实际情况进行调整
-//     manifestItems += `<item id="res${
-//       index + 1
-//     }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
-//   });
-
-//   const now = new Date();
-//   const formattedDate = now.toISOString().split(".")[0] + "Z";
-
-//   const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
-//     <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
-//         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-//             <dc:title>${metadata.title}</dc:title>
-//             <dc:creator>${metadata.author}</dc:creator>
-//             <dc:identifier id="bookid">urn:uuid:${uuid}</dc:identifier>
-//             <dc:language>en</dc:language> <!-- 添加书籍语言 -->
-//             <meta property="dcterms:modified">${formattedDate}</meta>
-//         </metadata>
-//         <manifest>
-//             ${manifestItems}
-//             <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-//             <item id="nav" href="toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-//         </manifest>
-//         <spine toc="ncx">
-//             ${spineItems}
-//         </spine>
-//     </package>`;
-
-//   return contentOpf;
-// }
-
 function generateContentOpf(
   metadata,
   htmlFiles,
   coverImagePath,
   resourcePaths,
-  uuid
+  uuid,
 ) {
   let manifestItems = "";
   let spineItems = "";
@@ -328,7 +273,7 @@ function initializeEpubStructure(zip) {
     <rootfiles>
         <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
     </rootfiles>
-    </container>`
+    </container>`,
   );
 }
 
@@ -351,7 +296,7 @@ async function processImageReferences(
   zip,
   markdownDir,
   epubDir,
-  markdownFilePath
+  markdownFilePath,
 ) {
   const markdownContent = await fs.promises.readFile(markdownFilePath, "utf-8");
   const pattern = /!\[[^\]]*\]\((.*?)\)/g;
@@ -369,7 +314,7 @@ async function processImageReferences(
         const imageDestPath = path.join(
           epubBaseDir,
           "images",
-          path.basename(normalizedImagePath)
+          path.basename(normalizedImagePath),
         );
 
         // 确保目标目录存在
@@ -395,7 +340,7 @@ async function processMarkdownFiles(
   epubDir,
   htmlFiles,
   titles,
-  processedFiles
+  processedFiles,
 ) {
   const files = fs.readdirSync(markdownDir);
   const markdownFiles = files.filter((file) => path.extname(file) === ".md");
@@ -419,7 +364,7 @@ async function processMarkdownFiles(
       htmlFileFullName,
       htmlFileRelativePath,
       htmlFilePath,
-      htmlFilename
+      htmlFilename,
     );
     try {
       const content = await fs.promises.readFile(htmlFileFullName, "utf-8");
@@ -447,7 +392,7 @@ async function processMarkdownFiles(
       100
     ).toFixed(2);
     console.log(
-      `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`
+      `转换进度: ${processedFiles.count}/${processedFiles.total} (${percentage}%)`,
     );
     callback();
   }, 15);
@@ -471,7 +416,7 @@ async function processMarkdownFiles(
         subDir,
         htmlFiles,
         titles,
-        processedFiles
+        processedFiles,
       );
     }
   }
@@ -482,7 +427,7 @@ async function createEpub(
   epubPath,
   metadata,
   coverImagePath,
-  resourcePaths = []
+  resourcePaths = [],
 ) {
   console.log("开始创建EPUB...");
 
@@ -506,7 +451,7 @@ async function createEpub(
     epubDir,
     htmlFiles,
     titles,
-    processedFiles
+    processedFiles,
   );
 
   await addCoverAndResources(zip, coverImagePath, resourcePaths);
@@ -518,7 +463,7 @@ async function createEpub(
     htmlFiles,
     coverImagePath,
     resourcePaths,
-    uuid
+    uuid,
   );
   zip.file("OEBPS/content.opf", contentOpf);
 
@@ -547,7 +492,7 @@ async function createEpub(
 async function validateEpub(epubPath) {
   try {
     const { stdout, stderr } = await execAsync(
-      `java -jar epubcheck/epubcheck.jar "${epubPath}"`
+      `java -jar epubcheck/epubcheck.jar "${epubPath}"`,
     );
     console.log("EPUBCheck 校验结果:");
     console.log(stdout);
@@ -574,7 +519,7 @@ const metadata = {
 createEpub(
   markdownDir,
   epubPath,
-  metadata
+  metadata,
   // coverImagePath,
   // resourcePaths
 ).catch(console.error);
@@ -585,7 +530,7 @@ async function createEpubFromMarkdown(
   metadata,
   titles,
   coverImagePath,
-  resourcePaths
+  resourcePaths,
 ) {
   const zip = new JSZip();
   initializeEpubStructure(zip);
@@ -598,7 +543,7 @@ async function createEpubFromMarkdown(
     await convertMarkdownToHtmlPandoc(file, `OEBPS/${htmlFilename}`);
     const content = await fs.promises.readFile(
       `OEBPS/${htmlFilename}`,
-      "utf-8"
+      "utf-8",
     );
     zip.file(`OEBPS/${htmlFilename}`, content); // 确保文件路径正确
     htmlFiles.push(htmlFilename); // 修改这里以确保路径正确
@@ -613,7 +558,7 @@ async function createEpubFromMarkdown(
     htmlFiles,
     coverImagePath,
     resourcePaths,
-    uuid // 将 UUID 传递给 generateContentOpf 函数
+    uuid, // 将 UUID 传递给 generateContentOpf 函数
   );
   zip.file("OEBPS/content.opf", contentOpf);
 
@@ -631,20 +576,3 @@ async function createEpubFromMarkdown(
     })
     .catch((error) => console.error("Failed to generate EPUB:", error));
 }
-
-// // 示例用法
-// const markdownFiles = ["chapter1.md", "chapter2.md"]; // Markdown文件路径
-// const epubOutputPath = "epubcheck-5.1.0/output.epub"; // 输出EPUB路径
-// const metadata = { title: "我的电子书标题", author: "作者名" }; // 电子书元数据
-// const titles = ["第一章 标题", "第二章 标题"]; // 章节标题
-// const coverImagePath = "cover.jpg"; // 封面图片路径
-// const resourcePaths = []; // 资源文件路径
-
-// createEpubFromMarkdown(
-//   markdownFiles,
-//   epubOutputPath,
-//   metadata,
-//   titles,
-//   coverImagePath,
-//   resourcePaths
-// ).catch(console.error);
