@@ -144,6 +144,7 @@ function generateContentOpf(
 ) {
   let manifestItems = "";
   let spineItems = "";
+  const addedFiles = new Set();
 
   htmlFiles.forEach((file, index) => {
     const id = `item${index + 1}`;
@@ -154,22 +155,31 @@ function generateContentOpf(
 
   if (coverImagePath) {
     const coverImageName = path.basename(coverImagePath);
-    manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
+    if (!addedFiles.has(`images/${coverImageName}`)) {
+      manifestItems += `<item id="cover-image" href="images/${coverImageName}" media-type="image/jpeg" properties="cover-image"/>\n`;
+      addedFiles.add(`images/${coverImageName}`);
+    }
   }
 
   imageFiles.forEach((file, index) => {
-    const mediaType = getMediaType(file);
-    manifestItems += `<item id="image${
-      index + 1
-    }" href="${file}" media-type="${mediaType}"/>\n`;
+    if (!addedFiles.has(file)) {
+      const mediaType = getMediaType(file);
+      manifestItems += `<item id="image${
+        index + 1
+      }" href="${file}" media-type="${mediaType}"/>\n`;
+      addedFiles.add(file);
+    }
   });
 
   resourcePaths.forEach((resourcePath, index) => {
     const resourceName = path.basename(resourcePath);
-    const mediaType = getMediaType(resourcePath);
-    manifestItems += `<item id="res${
-      index + 1
-    }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
+    if (!addedFiles.has(`images/${resourceName}`)) {
+      const mediaType = getMediaType(resourcePath);
+      manifestItems += `<item id="res${
+        index + 1
+      }" href="images/${resourceName}" media-type="${mediaType}"/>\n`;
+      addedFiles.add(`images/${resourceName}`);
+    }
   });
 
   const now = new Date();
@@ -436,12 +446,17 @@ async function downloadImage(url, dest, timeout = 10000) {
                 fileExtension = ".webp";
                 break;
               case "image/svg+xml":
+              case "image/svg+xml;charset=utf-8":
                 fileExtension = ".svg";
                 break;
               default:
+                console.warn(
+                  `未知的图片类型: ${contentType}. 使用默认的.jpg扩展名. URL: ${url}`
+                );
                 fileExtension = path.extname(parsedUrl.pathname) || ".jpg"; // 默认使用.jpg
             }
           } else {
+            console.warn(`无法获取图片类型. 使用URL的扩展名. URL: ${url}`);
             fileExtension = path.extname(parsedUrl.pathname);
           }
 
@@ -569,7 +584,11 @@ async function processImages(zip, epubDir, htmlFiles) {
         htmlContent = htmlContent.replace(`src="${src}"`, `src="${newSrc}"`);
         if (newSrc !== "images/placeholder.svg") {
           imageFiles.push(newSrc);
-          zip.file(newSrc, fs.readFileSync(path.join(epubDir, newSrc)));
+          // 将下载的图片添加到zip中
+          zip.file(
+            path.join(epubDir, newSrc).replace(/\\/g, "/"),
+            fs.readFileSync(path.join(epubDir, newSrc))
+          );
         }
       } else {
         // 对于rejected的情况，这里不做特殊处理，因为已在promise中使用占位符
