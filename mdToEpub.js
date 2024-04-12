@@ -222,21 +222,6 @@ function generateContentOpf(
 function getMediaType(filePath) {
   const extension = path.extname(filePath).toLowerCase();
   switch (extension) {
-    // case "image/jpeg":
-    //             fileExtension = ".jpg";
-    //             break;
-    //           case "image/png":
-    //             fileExtension = ".png";
-    //             break;
-    //           case "image/gif":
-    //             fileExtension = ".gif";
-    //             break;
-    //           case "image/webp":
-    //             fileExtension = ".webp";
-    //             break;
-    //           case "image/svg+xml":
-    //           case "image/svg+xml;charset=utf-8":
-    //             fileExtension = ".svg";
     case ".jpg":
     case ".jpeg":
       return "image/jpeg";
@@ -247,7 +232,7 @@ function getMediaType(filePath) {
     case ".webp":
       return "image/webp";
     case ".svg":
-      return "image/svg+xml";
+      return "image/svg+xml;charset=utf-8";
     default:
       return "application/octet-stream";
   }
@@ -387,7 +372,6 @@ async function processMarkdownFiles(
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
       // 保存HTML文件路径而不是立即添加到zip
-      // htmlFiles.push(htmlFilePath.replace("OEBPS/", ""));
       // 正确的方式，确保不重复添加基目录前缀
       htmlFiles.push(htmlFilePath.replace(epubDir + path.sep, ""));
       console.log(`添加HTML文件1111: ${htmlFilePath}`);
@@ -636,7 +620,6 @@ async function createEpub(
   await ensureDirectoryExists(epubDir);
 
   try {
-    // OEBPS/images/placeholder.svg
     console.log("处理Markdown文件...");
     const totalFiles = countMarkdownFiles(markdownDir);
     const processedFiles = { count: 0, total: totalFiles };
@@ -651,8 +634,6 @@ async function createEpub(
 
     console.log("处理图片资源...");
     const imageFiles = await processImages(zip, epubDir, htmlFiles); // 更新HTML文件以包含下载的图片
-    // add placeholder image
-    // images/placeholder.svg
     const uniqueImageFiles = [...new Set(imageFiles), "images/placeholder.svg"]; // 去除重复的图片文件
 
     // 将更新后的HTML文件添加到zip
@@ -691,7 +672,7 @@ async function createEpub(
     });
 
     console.log("开始校验EPUB...");
-    validateEpub(epubPath); // 假设存在此函数
+    validateEpub(epubPath); 
   } catch (error) {
     console.error("EPUB创建失败:", error);
   }
