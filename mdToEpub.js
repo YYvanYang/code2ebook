@@ -502,7 +502,6 @@ async function downloadImage(url, dest, timeout = 10000) {
   });
 }
 
-// 调整 processImages 函数以解决文件名重复问题
 async function processImages(zip, epubDir, htmlFiles) {
   const imageFiles = [];
 
@@ -512,70 +511,70 @@ async function processImages(zip, epubDir, htmlFiles) {
 
     const imgPattern = /<img[^>]+src="([^"]+)"[^>]*>/g;
     let match;
+    let downloadPromises = [];
 
     while ((match = imgPattern.exec(htmlContent)) !== null) {
       const src = match[1];
+      // 对于每个匹配项，创建一个闭包处理下载和替换
+      const promise = (async () => {
+        if (src.startsWith("http")) {
+          try {
+            const urlObj = new URL(src);
+            const imageName =
+              path.basename(urlObj.pathname) +
+              (urlObj.search
+                ? "_" +
+                  encodeURIComponent(urlObj.search).replace(
+                    /[^a-zA-Z0-9]/g,
+                    "_"
+                  )
+                : "");
+            // 确保目标路径包含文件名和后缀
+            const imageDestPath = path.join(
+              epubDir,
+              "images",
+              imageName.replace(/[^a-zA-Z0-9\.]/g, "_")
+            );
 
-      if (src.startsWith("http")) {
-        // 使用URL的pathname和search部分生成唯一文件名
-        const urlObj = new URL(src);
-        const imageName =
-          path.basename(urlObj.pathname) +
-          (urlObj.search
-            ? "_" +
-              encodeURIComponent(urlObj.search).replace(/[^a-zA-Z0-9]/g, "_")
-            : "");
-        const imageDestPath = path.join(
-          epubDir,
-          "images",
-          imageName.replace(/[^a-zA-Z0-9\.]/g, "_")
-        );
+            const downloadedImagePath = await downloadImage(src, imageDestPath);
+            console.log(`下载图片: ${src} -> ${downloadedImagePath}`);
 
-        try {
-          const downloadedImagePath = await downloadImage(src, imageDestPath);
-          console.log(`下载图片: ${src} -> ${downloadedImagePath}`);
+            const localImagePath = path
+              .relative(epubDir, downloadedImagePath)
+              .replace(/\\/g, "/");
+            return { src, newSrc: localImagePath, status: "fulfilled" };
+          } catch (error) {
+            console.error(`图片下载失败: ${src}. 使用占位符替换.`, error);
+            return {
+              src,
+              newSrc: "images/placeholder.svg",
+              status: "rejected",
+            };
+          }
+        } else {
+          // 如果是本地路径，则直接返回
+          return { src, newSrc: src, status: "fulfilled" };
+        }
+      })();
+      downloadPromises.push(promise);
+    }
 
-          const localImagePath = path
-            .relative(epubDir, downloadedImagePath)
-            .replace(/\\/g, "/");
-          htmlContent = htmlContent.replace(
-            match[0],
-            `<img src="${localImagePath}" alt="">`
-          );
+    // 等待所有图片处理完成
+    const results = await Promise.allSettled(downloadPromises);
 
-          imageFiles.push(localImagePath);
-          zip.file(localImagePath, fs.readFileSync(downloadedImagePath));
-        } catch (error) {
-          console.error(`图片下载失败: ${src}. 使用占位符替换.`, error);
-          htmlContent = htmlContent.replace(
-            match[0],
-            `<img src="images/placeholder.svg" alt="">`
-          );
+    // 根据每个Promise的结果来替换HTML中的src属性
+    results.forEach(({ status, value }) => {
+      if (status === "fulfilled") {
+        const { src, newSrc } = value;
+        htmlContent = htmlContent.replace(`src="${src}"`, `src="${newSrc}"`);
+        if (newSrc !== "images/placeholder.svg") {
+          imageFiles.push(newSrc);
+          zip.file(newSrc, fs.readFileSync(path.join(epubDir, newSrc)));
         }
       } else {
-        const normalizedImagePath = path.normalize(src);
-        const absoluteImagePath = path.join(epubDir, normalizedImagePath);
-
-        if (fs.existsSync(absoluteImagePath)) {
-          console.log(`本地图片已存在: ${absoluteImagePath}`);
-
-          const epubImagePath = normalizedImagePath.replace(/\\/g, "/");
-          htmlContent = htmlContent.replace(
-            match[0],
-            `<img src="${epubImagePath}" alt="">`
-          );
-
-          imageFiles.push(epubImagePath);
-          zip.file(absoluteImagePath, fs.readFileSync(absoluteImagePath));
-        } else {
-          console.warn(`本地图片不存在: ${absoluteImagePath}. 使用占位符替换.`);
-          htmlContent = htmlContent.replace(
-            match[0],
-            `<img src="images/placeholder.svg" alt="">`
-          );
-        }
+        // 对于rejected的情况，这里不做特殊处理，因为已在promise中使用占位符
       }
-    }
+    });
 
     await fs.promises.writeFile(htmlFilePath, htmlContent, "utf-8");
   }
