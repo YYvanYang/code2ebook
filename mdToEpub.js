@@ -110,6 +110,9 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 
     let htmlContent = await fs.promises.readFile(outputPath, "utf-8");
 
+    // 移除注释
+    htmlContent = htmlContent.replace(/<!--[\s\S]*?-->/g, '');
+
     htmlContent = addEpubNamespaceToHtml(htmlContent);
 
     htmlContent = fixUnclosedSelfClosingTags(htmlContent);
