@@ -668,7 +668,11 @@ async function processImages(zip, epubDir, htmlFiles) {
     results.forEach(({ status, value }) => {
       if (status === "fulfilled") {
         const { src, newSrc } = value;
-        htmlContent = htmlContent.replace(`src="${src}"`, `src="${newSrc}"`);
+        // 计算图片相对于当前HTML文件的相对路径
+        const htmlDirPath = path.dirname(htmlFilePath);
+        const relativeImagePath = path.relative(htmlDirPath, path.join(epubDir, newSrc)).replace(/\\/g, "/");
+
+        htmlContent = htmlContent.replace(`src="${src}"`, `src="${relativeImagePath}"`);
         if (newSrc !== "images/placeholder.svg") {
           imageFiles.push(newSrc);
           // 将下载的图片添加到zip中
