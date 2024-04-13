@@ -126,7 +126,7 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     // 在 <head> 中引入 style.css
     htmlContent = htmlContent.replace(
       /<head>/i,
-      `<head>\n<link rel="stylesheet" type="text/css" href=${styleCssPath}/>`
+      `<head>\n<link rel="stylesheet" type="text/css" href="${styleCssPath}"/>`
     );
 
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
