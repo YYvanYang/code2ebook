@@ -51,13 +51,6 @@ function addEpubNamespaceToHtml(htmlContent) {
   return htmlContent;
 }
 
-function removeSetupAttribute(html) {
-  const scriptRegex = /<script\b[^>]*>/gi;
-  return html.replace(scriptRegex, (match) => {
-    return match.replace(/\bsetup\b/i, "").replace(/\s+/g, " ");
-  });
-}
-
 function processAnchorHrefs(htmlContent, htmlFilePath) {
   const hrefRegex =
     /(<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))/gi;
@@ -101,6 +94,14 @@ function replaceAlignAttributes(html) {
   });
 }
 
+function convertScriptToCodeBlock(htmlContent) {
+  const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+  return htmlContent.replace(scriptRegex, (match, scriptContent) => {
+    const codeBlock = `<pre><code>${scriptContent.trim()}</code></pre>`;
+    return codeBlock;
+  });
+}
+
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
@@ -116,9 +117,9 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     htmlContent = processAnchorHrefs(htmlContent, outputPath); // 传入当前 XHTML 文件的路径
 
     htmlContent = moveStyleToHead(htmlContent); // 移动 <style> 元素到 <head> 中
-    htmlContent = removeSetupAttribute(htmlContent); // 移除 setup 属性
     // 替换 align 和 data-align 属性为 CSS 类
     htmlContent = replaceAlignAttributes(htmlContent);
+    htmlContent = convertScriptToCodeBlock(htmlContent); // 将 <script> 转换为 <pre><code> 块
 
     // 计算 style.css 文件相对于 XHTML 文件的相对路径
     const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
