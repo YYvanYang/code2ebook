@@ -51,12 +51,6 @@ function addEpubNamespaceToHtml(htmlContent) {
   return htmlContent;
 }
 
-function replaceAlign(html) {
-  const regex = /(<p\b[^>]*?\s)align=["']center["']([^>]*>)/gi;
-
-  return html.replace(regex, '$1style="text-align: center;"$2');
-}
-
 function removeSetupAttribute(html) {
   const scriptRegex = /<script\b[^>]*>/gi;
   return html.replace(scriptRegex, (match) => {
@@ -85,6 +79,27 @@ function processAnchorHrefs(htmlContent, htmlFilePath) {
   });
 }
 
+function convertAlignmentToClass(alignment) {
+  switch (alignment) {
+    case 'center':
+      return 'text-center';
+    case 'left':
+      return 'text-left';
+    case 'right':
+      return 'text-right';
+    default:
+      return '';
+  }
+}
+
+function replaceAlignAttributes(html) {
+  const alignPattern = /<(\w+)\s+(?:align|data-align)="(left|center|right)">/g;
+  return html.replace(alignPattern, (match, tagName, alignment) => {
+    const className = convertAlignmentToClass(alignment);
+    return `<${tagName} class="${className}">`;
+  });
+}
+
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
@@ -95,14 +110,19 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 
     htmlContent = addEpubNamespaceToHtml(htmlContent);
 
-    htmlContent = replaceAlign(htmlContent);
-
     htmlContent = fixUnclosedSelfClosingTags(htmlContent);
 
     htmlContent = processAnchorHrefs(htmlContent, outputPath); // 传入当前 XHTML 文件的路径
 
     htmlContent = moveStyleToHead(htmlContent); // 移动 <style> 元素到 <head> 中
     htmlContent = removeSetupAttribute(htmlContent); // 移除 setup 属性
+    // 替换 align 和 data-align 属性为 CSS 类
+    htmlContent = replaceAlignAttributes(htmlContent);
+    // 在 <head> 中引入 style.css
+    htmlContent = htmlContent.replace(
+      /<head>/i,
+      '<head>\n<link rel="stylesheet" type="text/css" href="style.css"/>'
+    );
 
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
   } catch (error) {
@@ -178,6 +198,9 @@ function generateContentOpf(
   let manifestItems = "";
   let spineItems = "";
   const addedFiles = new Set();
+
+   // 添加 style.css 文件到清单中
+  manifestItems += `<item id="style.css" href="style.css" media-type="text/css"/>\n`;
 
   htmlFiles.forEach((file, index) => {
     const id = `item${index + 1}`;
@@ -641,6 +664,28 @@ async function processImages(zip, epubDir, htmlFiles) {
   return imageFiles;
 }
 
+async function createStyleCss(epubDir) {
+  const cssContent = `
+    .text-center {
+      text-align: center;
+    }
+
+    .text-left {
+      text-align: left;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    /* 其他公共样式 */
+  `;
+
+  const styleCssPath = path.join(epubDir, "style.css");
+  await fs.promises.writeFile(styleCssPath, cssContent, "utf-8");
+  return styleCssPath;
+}
+
 async function createEpub(
   markdownDir,
   epubPath,
@@ -660,6 +705,12 @@ async function createEpub(
   await ensureDirectoryExists(epubDir);
 
   try {
+
+    // 创建 style.css 文件
+    const styleCssPath = await createStyleCss(epubDir);
+    // 将 style.css 文件添加到 EPUB 中
+    zip.file("OEBPS/style.css", fs.readFileSync(styleCssPath));
+
     console.log("处理Markdown文件...");
     const totalFiles = countMarkdownFiles(markdownDir);
     const processedFiles = { count: 0, total: totalFiles };
