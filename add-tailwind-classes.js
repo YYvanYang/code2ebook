@@ -1,72 +1,55 @@
+const { readFileSync, writeFileSync } = require('fs');
+
+// Reading standard input (STDIN)
+const input = readFileSync(0, 'utf-8');
+
+function modifyAttributes(attributes, additionalClasses) {
+    let classAttr = attributes.find(attr => attr[0] === 'class');
+    if (classAttr) {
+        classAttr[1] += ` ${additionalClasses}`;
+    } else {
+        attributes.push(['class', additionalClasses]);
+    }
+}
+
 function addTailwindClasses(element) {
-  if (element.t === 'Header') {
-    const level = element.c[0];
-    element.c[1][0].c.push({
-      t: 'Str',
-      c: `text-${level}xl font-bold mb-${level}`
-    });
-  } else if (element.t === 'Para') {
-    element.c.push({
-      t: 'Str',
-      c: 'text-base text-gray-700 mb-4 leading-relaxed'
-    });
-  } else if (element.t === 'BlockQuote') {
-    element.c.push({
-      t: 'Str',
-      c: 'border-l-4 border-gray-300 pl-4 text-gray-600 italic bg-gray-100 rounded-md'
-    });
-  } else if (element.t === 'CodeBlock') {
-    element.c[1].push({
-      t: 'Str',
-      c: 'bg-gray-100 rounded-md p-4 mb-4 text-sm font-mono'
-    });
-  } else if (element.t === 'BulletList') {
-    element.c.forEach(item => {
-      item.c.push({
-        t: 'Str',
-        c: 'list-disc text-base text-gray-600 mb-2'
-      });
-    });
-  } else if (element.t === 'OrderedList') {
-    element.c.forEach(item => {
-      item.c.push({
-        t: 'Str',
-        c: 'list-decimal text-base text-gray-600 mb-2'
-      });
-    });
-  } else if (element.t === 'Link') {
-    element.c[1].push({
-      t: 'Str',
-      c: 'text-blue-600 underline'
-    });
-  } else if (element.t === 'Image') {
-    element.c[1].push({
-      t: 'Str',
-      c: 'mb-4'
-    });
-  }
+    if (element.t && element.c) {
+        let attributes;
+        // For elements that directly contain attributes
+        if (Array.isArray(element.c[1]) && element.c[1].some(attr => Array.isArray(attr) && attr[0] === 'class')) {
+            attributes = element.c[1];
+        }
+        // For elements with a different structure, adjust the logic to find the attributes array
+
+        // Once attributes are identified or if the structure is different, modify them
+        if (attributes) {
+            switch (element.t) {
+                case 'Header':
+                    modifyAttributes(attributes, `text-xl font-bold mb-4`);
+                    break;
+                case 'CodeBlock':
+                    modifyAttributes(attributes, 'bg-gray-100 rounded-md p-4 mb-4 text-sm font-mono');
+                    break;
+                // Add more cases as needed
+            }
+        }
+    }
 }
 
-function Pandoc(element) {
-  if (Array.isArray(element)) {
-    element.forEach(Pandoc);
-  } else if (element.t) {
-    addTailwindClasses(element);
-    Object.keys(element).forEach(key => {
-      Pandoc(element[key]);
-    });
-  }
-  return element;
+function walk(node) {
+    if (Array.isArray(node)) {
+        node.forEach(walk);
+    } else if (node && typeof node === 'object') {
+        addTailwindClasses(node);
+        Object.values(node).forEach(walk);
+    }
 }
 
-// 从标准输入读取 JSON
-let input = '';
-process.stdin.on('data', chunk => {
-  input += chunk;
-});
+// Parse the input JSON
+const ast = JSON.parse(input);
 
-process.stdin.on('end', () => {
-  const json = JSON.parse(input);
-  const output = JSON.stringify(Pandoc(json));
-  process.stdout.write(output);
-});
+// Walk and modify the AST
+walk(ast);
+
+// Output the modified JSON
+process.stdout.write(JSON.stringify(ast));
