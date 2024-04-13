@@ -372,7 +372,7 @@ async function processMarkdownFiles(
       console.log(`转换Markdown文件: ${filePath}`);
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
-      const convertedHtmlFilePath = htmlFilePath.replace(/OEBPS[\\\/]/g, "");
+      const convertedHtmlFilePath = htmlFilePath.replace(/OEBPS[\\\/]/g, "").replace(/\\/g, "/");
       htmlFiles.push(convertedHtmlFilePath);
       console.log(`添加HTML文件: ${convertedHtmlFilePath}`);
 
