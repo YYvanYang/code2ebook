@@ -119,10 +119,14 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     htmlContent = removeSetupAttribute(htmlContent); // 移除 setup 属性
     // 替换 align 和 data-align 属性为 CSS 类
     htmlContent = replaceAlignAttributes(htmlContent);
+
+    // 计算 style.css 文件相对于 XHTML 文件的相对路径
+    const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
+    const styleCssPath = path.join(relativePath, "style.css").replace(/\\/g, "/");
     // 在 <head> 中引入 style.css
     htmlContent = htmlContent.replace(
       /<head>/i,
-      '<head>\n<link rel="stylesheet" type="text/css" href="style.css"/>'
+      `<head>\n<link rel="stylesheet" type="text/css" href=${styleCssPath}/>`
     );
 
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");

@@ -66,7 +66,12 @@ function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx
           ? codeToMarkdown(content, language)
           : content;
         const markdownPath = path.join(baseDir, `${path.basename(file, extension)}.md`);
-        markdownContent = `# ${path.basename(file)}\n\n${markdownContent}`;
+        const relativePath = path.relative(fullRepoDir, filePath);
+        const chapterTitle = relativePath
+          .replace(/_/g, " ")
+          .replace(/\//g, " > ")
+          .replace(/\\/g, " > ");
+        markdownContent = `# ${chapterTitle}\n\n${markdownContent}`;
         fs.writeFileSync(markdownPath, markdownContent);
       }
     }
