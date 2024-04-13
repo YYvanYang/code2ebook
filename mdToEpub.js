@@ -54,41 +54,42 @@ function addEpubNamespaceToHtml(htmlContent) {
 function removeSetupAttribute(html) {
   const scriptRegex = /<script\b[^>]*>/gi;
   return html.replace(scriptRegex, (match) => {
-    return match.replace(/\bsetup\b/i, '').replace(/\s+/g, ' ');
+    return match.replace(/\bsetup\b/i, "").replace(/\s+/g, " ");
   });
 }
 
 function processAnchorHrefs(htmlContent, htmlFilePath) {
-  const hrefRegex = /(<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))/gi;
-  
+  const hrefRegex =
+    /(<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))/gi;
+
   return htmlContent.replace(hrefRegex, (match, p1, p2, p3, p4) => {
     const href = p2 || p3 || p4;
-    
+
     if (href.startsWith("#") || href.startsWith("http")) {
       return match;
     }
-    
+
     if (href.startsWith(".")) {
       const absolutePath = path.join(path.dirname(htmlFilePath), href);
       if (fs.existsSync(absolutePath)) {
         return match;
       }
     }
-    
+
     return p1.replace(href, "#");
   });
 }
 
 function convertAlignmentToClass(alignment) {
   switch (alignment) {
-    case 'center':
-      return 'text-center';
-    case 'left':
-      return 'text-left';
-    case 'right':
-      return 'text-right';
+    case "center":
+      return "text-center";
+    case "left":
+      return "text-left";
+    case "right":
+      return "text-right";
     default:
-      return '';
+      return "";
   }
 }
 
@@ -199,7 +200,7 @@ function generateContentOpf(
   let spineItems = "";
   const addedFiles = new Set();
 
-   // 添加 style.css 文件到清单中
+  // 添加 style.css 文件到清单中
   manifestItems += `<item id="style.css" href="style.css" media-type="text/css"/>\n`;
 
   htmlFiles.forEach((file, index) => {
@@ -396,11 +397,11 @@ function moveStyleToHead(html) {
 
   if (matches) {
     // 将匹配到的 <style> 元素从 <body> 中移除
-    html = html.replace(styleRegex, '');
+    html = html.replace(styleRegex, "");
 
     // 将 <style> 元素插入到 <head> 中
-    matches.forEach(style => {
-      html = html.replace('</head>', style + '</head>');
+    matches.forEach((style) => {
+      html = html.replace("</head>", style + "</head>");
     });
   }
 
@@ -425,7 +426,7 @@ async function processMarkdownFiles(
   );
 
   // 使用 mapLimit 函数进行批量并发转换
-  await async.mapLimit(markdownFiles, 30, async (file) => {
+  await async.mapLimit(markdownFiles, 15, async (file) => {
     const filePath = path.join(markdownDir, file);
     const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
     const htmlFilePath = path.join(epubDir, htmlFilename);
@@ -434,7 +435,9 @@ async function processMarkdownFiles(
       console.log(`转换Markdown文件: ${filePath}`);
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
-      const convertedHtmlFilePath = htmlFilePath.replace(/OEBPS[\\\/]/g, "").replace(/\\/g, "/");
+      const convertedHtmlFilePath = htmlFilePath
+        .replace(/OEBPS[\\\/]/g, "")
+        .replace(/\\/g, "/");
       htmlFiles.push(convertedHtmlFilePath);
       console.log(`添加HTML文件: ${convertedHtmlFilePath}`);
 
@@ -689,7 +692,6 @@ async function createStyleCss(epubDir) {
 async function createEpub(
   markdownDir,
   epubPath,
-  metadata,
   coverImagePath,
   resourcePaths = []
 ) {
@@ -705,7 +707,6 @@ async function createEpub(
   await ensureDirectoryExists(epubDir);
 
   try {
-
     // 创建 style.css 文件
     const styleCssPath = await createStyleCss(epubDir);
     // 将 style.css 文件添加到 EPUB 中
@@ -729,9 +730,7 @@ async function createEpub(
 
     // 将更新后的HTML文件添加到zip
     for (const htmlFile of htmlFiles) {
-      const fullHtmlPath = path
-        .join(epubDir, htmlFile)
-        // .replace(/\//g, path.sep);
+      const fullHtmlPath = path.join(epubDir, htmlFile);
       console.log(`添加HTML文件到EPUB: ${fullHtmlPath}`);
       const htmlContent = await fs.promises.readFile(fullHtmlPath, "utf-8");
       console.log(`添加HTML文件到EPUB2: ${htmlFile}`);
@@ -763,7 +762,7 @@ async function createEpub(
     });
 
     console.log("开始校验EPUB...");
-    validateEpub(epubPath); 
+    validateEpub(epubPath);
   } catch (error) {
     console.error("EPUB创建失败:", error);
   }
@@ -785,21 +784,21 @@ async function validateEpub(epubPath) {
   }
 }
 
-// 示例用法
 const markdownDir = "markdown/rolldown";
-const epubPath = "output.epub";
+const repoName = "rolldown";
+const author = "rolldown";
+const timestamp = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
+const epubPath = `${repoName}_${timestamp}.epub`;
 const metadata = {
-  title: "电子书标题",
-  author: "作者",
+  title: repoName,
+  author,
 };
-
 // const coverImagePath = "cover.jpg";
 // const resourcePaths = ["OEBPS/images"];
 
 createEpub(
   markdownDir,
-  epubPath,
-  metadata
+  epubPath
   // coverImagePath,
   // resourcePaths
 ).catch(console.error);

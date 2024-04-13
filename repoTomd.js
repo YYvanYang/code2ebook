@@ -62,10 +62,11 @@ function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx
       const extension = path.extname(file);
       if (codeExtensions.includes(extension) || extension === ".md") {
         const language = extension.slice(1);
-        const markdownContent = codeExtensions.includes(extension)
+        let markdownContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
           : content;
         const markdownPath = path.join(baseDir, `${path.basename(file, extension)}.md`);
+        markdownContent = `# ${path.basename(file)}\n\n${markdownContent}`;
         fs.writeFileSync(markdownPath, markdownContent);
       }
     }
