@@ -58,6 +58,7 @@ function processFiles(
     ".jsx",
     ".tsx",
     ".rs",
+    ".vue",
     ".editorconfig",
   ],
   repoName
@@ -132,6 +133,7 @@ async function main() {
       ".jsx",
       ".tsx",
       ".rs",
+      ".vue",
       ".editorconfig",
     ];
     processFiles(fullRepoDir, baseDir, codeExtensions, repoName);
