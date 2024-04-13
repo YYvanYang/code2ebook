@@ -53,6 +53,7 @@ function processFiles(
   baseDir,
   codeExtensions = [
     ".js",
+    ".cjs",
     ".ts",
     ".py",
     ".jsx",
@@ -128,6 +129,7 @@ async function main() {
 
     const codeExtensions = [
       ".js",
+      ".cjs",
       ".ts",
       ".py",
       ".jsx",
