@@ -111,7 +111,7 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     let htmlContent = await fs.promises.readFile(outputPath, "utf-8");
 
     // 移除注释
-    htmlContent = htmlContent.replace(/<!--[\s\S]*?-->/g, '');
+    htmlContent = htmlContent.replace(/<!--[\s\S]*?-->/g, "");
 
     htmlContent = addEpubNamespaceToHtml(htmlContent);
 
@@ -134,7 +134,9 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 
     // 计算 style.css 文件相对于 XHTML 文件的相对路径
     const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
-    const styleCssPath = path.join(relativePath, "style.css").replace(/\\/g, "/");
+    const styleCssPath = path
+      .join(relativePath, "style.css")
+      .replace(/\\/g, "/");
     // 在 <head> 中引入 style.css
     htmlContent = htmlContent.replace(
       /<head>/i,
@@ -457,7 +459,10 @@ async function processMarkdownFiles(
       htmlFiles.push(convertedHtmlFilePath);
       console.log(`添加HTML文件: ${convertedHtmlFilePath}`);
 
-      let title = path.basename(htmlFilename, ".xhtml");
+      let title = convertedHtmlFilePath
+        .replace(/\.xhtml$/, "")
+        .replace(/_/g, " ")
+        .replace("/", " > ");
       titles.push(title);
 
       processedFiles.count++;
@@ -749,7 +754,6 @@ async function createEpub(
       const fullHtmlPath = path.join(epubDir, htmlFile);
       console.log(`添加HTML文件到EPUB: ${fullHtmlPath}`);
       const htmlContent = await fs.promises.readFile(fullHtmlPath, "utf-8");
-      console.log(`添加HTML文件到EPUB2: ${htmlFile}`);
       zip.file(fullHtmlPath.replace(/\\/g, "/"), htmlContent);
     }
 
