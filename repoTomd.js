@@ -25,7 +25,7 @@ function removeDirectory(directory) {
 function cloneGitHubRepo(repoUrl, localDir) {
   ensureDirExists(path.dirname(localDir));
   removeDirectory(localDir);
-  execSync(`git clone ${repoUrl} "${localDir}"`);
+  execSync(`git clone --depth 1 ${repoUrl} "${localDir}"`);
   return path.resolve(localDir);
 }
 
@@ -48,7 +48,7 @@ function codeToMarkdown(content, language) {
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
-function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"]) {
+function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"], repoName) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
     const filePath = path.join(dir, file);
@@ -56,16 +56,23 @@ function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx
     if (stats.isDirectory()) {
       const subDir = path.join(baseDir, file);
       ensureDirExists(subDir);
-      processFiles(filePath, subDir, codeExtensions);
+      processFiles(filePath, subDir, codeExtensions, repoName);
     } else {
       const content = fs.readFileSync(filePath, "utf-8");
       const extension = path.extname(file);
       if (codeExtensions.includes(extension) || extension === ".md") {
         const language = extension.slice(1);
-        const markdownContent = codeExtensions.includes(extension)
+        let markdownContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
           : content;
         const markdownPath = path.join(baseDir, `${path.basename(file, extension)}.md`);
+        const chapterTitle = markdownPath
+          .replace(`markdown\\${repoName}\\`, "")
+          .replace(`markdown/${repoName}/`, "")
+          .replace(/_/g, " ")
+          .replace(/\//g, " > ")
+          .replace(/\\/g, " > ");
+        markdownContent = `# ${chapterTitle}\n\n${markdownContent}`;
         fs.writeFileSync(markdownPath, markdownContent);
       }
     }
@@ -84,7 +91,7 @@ async function main() {
     ensureDirExists(baseDir);
 
     const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
-    processFiles(fullRepoDir, baseDir, codeExtensions);
+    processFiles(fullRepoDir, baseDir, codeExtensions, repoName);
 
     console.log(`Markdown files generated in ${baseDir}`);
   } catch (error) {
