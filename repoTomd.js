@@ -48,12 +48,41 @@ function codeToMarkdown(content, language) {
   return `${backtickSequence}${language}\n${content}\n${backtickSequence}`;
 }
 
-function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"], repoName) {
+function processFiles(
+  dir,
+  baseDir,
+  codeExtensions = [
+    ".js",
+    ".ts",
+    ".py",
+    ".jsx",
+    ".tsx",
+    ".rs",
+    ".editorconfig",
+  ],
+  repoName
+) {
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
     const filePath = path.join(dir, file);
     const stats = fs.statSync(filePath);
     if (stats.isDirectory()) {
+      if (
+        file.startsWith(".") ||
+        file === "fixtures" ||
+        file === "node_modules" ||
+        file === "dist" ||
+        file === "build" ||
+        file === "coverage" ||
+        file === "test" ||
+        file === "tests" ||
+        file === "__tests__" ||
+        file === "example" ||
+        file === "examples" ||
+        file === "fixtures"
+      ) {
+        return; // 跳过以点开头的文件夹
+      }
       const subDir = path.join(baseDir, file);
       ensureDirExists(subDir);
       processFiles(filePath, subDir, codeExtensions, repoName);
@@ -65,7 +94,10 @@ function processFiles(dir, baseDir, codeExtensions = [".js", ".ts", ".py", ".jsx
         let markdownContent = codeExtensions.includes(extension)
           ? codeToMarkdown(content, language)
           : content;
-        const markdownPath = path.join(baseDir, `${path.basename(file, extension)}.md`);
+        const markdownPath = path.join(
+          baseDir,
+          `${path.basename(file, extension)}.md`
+        );
         const chapterTitle = markdownPath
           .replace(`markdown\\${repoName}\\`, "")
           .replace(`markdown/${repoName}/`, "")
@@ -90,7 +122,15 @@ async function main() {
     removeDirectory(baseDir);
     ensureDirExists(baseDir);
 
-    const codeExtensions = [".js", ".ts", ".py", ".jsx", ".tsx", ".rs"];
+    const codeExtensions = [
+      ".js",
+      ".ts",
+      ".py",
+      ".jsx",
+      ".tsx",
+      ".rs",
+      ".editorconfig",
+    ];
     processFiles(fullRepoDir, baseDir, codeExtensions, repoName);
 
     console.log(`Markdown files generated in ${baseDir}`);
