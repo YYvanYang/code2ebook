@@ -57,6 +57,34 @@ function replaceAlign(html) {
   return html.replace(regex, '$1style="text-align: center;"$2');
 }
 
+function removeSetupAttribute(html) {
+  const scriptRegex = /<script\b[^>]*>/gi;
+  return html.replace(scriptRegex, (match) => {
+    return match.replace(/\bsetup\b/i, '').replace(/\s+/g, ' ');
+  });
+}
+
+function processAnchorHrefs(htmlContent, htmlFilePath) {
+  const hrefRegex = /(<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))/gi;
+  
+  return htmlContent.replace(hrefRegex, (match, p1, p2, p3, p4) => {
+    const href = p2 || p3 || p4;
+    
+    if (href.startsWith("#") || href.startsWith("http")) {
+      return match;
+    }
+    
+    if (href.startsWith(".")) {
+      const absolutePath = path.join(path.dirname(htmlFilePath), href);
+      if (fs.existsSync(absolutePath)) {
+        return match;
+      }
+    }
+    
+    return p1.replace(href, "#");
+  });
+}
+
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
@@ -71,17 +99,10 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
 
     htmlContent = fixUnclosedSelfClosingTags(htmlContent);
 
-    // 使用正则表达式匹配<a>标签的href属性
-    // <a>标签的href属性值如果不是以#开头或http开头的,就替换为#.
-    const hrefRegex =
-      /(<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^>\s]+)))/gi;
-    htmlContent = htmlContent.replace(hrefRegex, (match, p1, p2, p3, p4) => {
-      const href = p2 || p3 || p4;
-      if (!href.startsWith("#") && !href.startsWith("http")) {
-        return p1.replace(href, "#");
-      }
-      return match;
-    });
+    htmlContent = processAnchorHrefs(htmlContent, outputPath); // 传入当前 XHTML 文件的路径
+
+    htmlContent = moveStyleToHead(htmlContent); // 移动 <style> 元素到 <head> 中
+    htmlContent = removeSetupAttribute(htmlContent); // 移除 setup 属性
 
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
   } catch (error) {
@@ -343,6 +364,24 @@ async function createPlaceholderImage(width, height, text) {
   const placeholder = "OEBPS/images/placeholder.svg";
   await fs.promises.mkdir(path.dirname(placeholder), { recursive: true });
   await fs.promises.writeFile(placeholder, svg, "utf-8");
+}
+
+function moveStyleToHead(html) {
+  // 使用正则表达式匹配 <style> 元素
+  const styleRegex = /<style>([\s\S]*?)<\/style>/gi;
+  const matches = html.match(styleRegex);
+
+  if (matches) {
+    // 将匹配到的 <style> 元素从 <body> 中移除
+    html = html.replace(styleRegex, '');
+
+    // 将 <style> 元素插入到 <head> 中
+    matches.forEach(style => {
+      html = html.replace('</head>', style + '</head>');
+    });
+  }
+
+  return html;
 }
 
 async function processMarkdownFiles(
