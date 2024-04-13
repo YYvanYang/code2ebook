@@ -232,7 +232,7 @@ function getMediaType(filePath) {
     case ".webp":
       return "image/webp";
     case ".svg":
-      return "image/svg+xml;charset=utf-8";
+      return "image/svg+xml";
     default:
       return "application/octet-stream";
   }
@@ -362,7 +362,8 @@ async function processMarkdownFiles(
     fs.readFileSync("OEBPS/images/placeholder.svg")
   );
 
-  for (const file of markdownFiles) {
+  // 使用 mapLimit 函数进行批量并发转换
+  await async.mapLimit(markdownFiles, 30, async (file) => {
     const filePath = path.join(markdownDir, file);
     const htmlFilename = `${path.basename(file, ".md")}.xhtml`;
     const htmlFilePath = path.join(epubDir, htmlFilename);
@@ -371,10 +372,9 @@ async function processMarkdownFiles(
       console.log(`转换Markdown文件: ${filePath}`);
       await convertMarkdownToHtmlPandoc(filePath, htmlFilePath);
 
-      // 保存HTML文件路径而不是立即添加到zip
-      // 正确的方式，确保不重复添加基目录前缀
-      htmlFiles.push(htmlFilePath.replace(epubDir + path.sep, ""));
-      console.log(`添加HTML文件1111: ${htmlFilePath}`);
+      const convertedHtmlFilePath = htmlFilePath.replace(/OEBPS[\\\/]/g, "");
+      htmlFiles.push(convertedHtmlFilePath);
+      console.log(`添加HTML文件: ${convertedHtmlFilePath}`);
 
       let title = path.basename(htmlFilename, ".xhtml");
       titles.push(title);
@@ -390,7 +390,7 @@ async function processMarkdownFiles(
     } catch (error) {
       console.error(`Error adding file to EPUB: ${error}`);
     }
-  }
+  });
 
   for (const file of files) {
     const filePath = path.join(markdownDir, file);
@@ -522,12 +522,6 @@ async function processImages(zip, epubDir, htmlFiles) {
 
   for (const htmlFile of htmlFiles) {
     const htmlFilePath = path.join(epubDir, htmlFile);
-    
-    // 检查文件是否存在
-    if (!fs.existsSync(htmlFilePath)) {
-      console.warn(`XHTML文件不存在，跳过处理: ${htmlFilePath}`);
-      continue;
-    }
 
     let htmlContent = await fs.promises.readFile(htmlFilePath, "utf-8");
 
@@ -647,7 +641,7 @@ async function createEpub(
     for (const htmlFile of htmlFiles) {
       const fullHtmlPath = path
         .join(epubDir, htmlFile)
-        .replace(/\//g, path.sep);
+        // .replace(/\//g, path.sep);
       console.log(`添加HTML文件到EPUB: ${fullHtmlPath}`);
       const htmlContent = await fs.promises.readFile(fullHtmlPath, "utf-8");
       console.log(`添加HTML文件到EPUB2: ${htmlFile}`);
