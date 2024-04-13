@@ -79,7 +79,9 @@ function processFiles(
         file === "__tests__" ||
         file === "example" ||
         file === "examples" ||
-        file === "fixtures"
+        file === "fixtures" ||
+        file === "script" ||
+        file === "scripts"
       ) {
         return; // 跳过以点开头的文件夹
       }
