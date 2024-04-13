@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require("uuid");
 const { promisify } = require("util");
 const http = require("http");
 const https = require("https");
+const generateTailwindCss = require('./generateTailwindCss');
 
 const execAsync = promisify(exec);
 
@@ -105,13 +106,23 @@ function convertScriptToCodeBlock(htmlContent) {
 async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
   try {
     await execAsync(
-      `pandoc "${inputPath}" -f markdown -t html5 -s -o "${outputPath}"`
+      `pandoc "${inputPath}" -f markdown -t html5 -s -o "${outputPath}" --template=template.html --filter=add-tailwind-classes.js`
     );
 
     let htmlContent = await fs.promises.readFile(outputPath, "utf-8");
 
-    htmlContent = addEpubNamespaceToHtml(htmlContent);
+    // htmlContent = addEpubNamespaceToHtml(htmlContent);
 
+    // 计算 output.css 文件相对于 XHTML 文件的相对路径
+    const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
+    const outputCssPath = path.join(relativePath, "output.css").replace(/\\/g, "/");
+
+    // 替换 <link> 标签中的 href 属性为动态生成的相对路径
+    htmlContent = htmlContent.replace(
+      /<link rel="stylesheet" href="output.css">/,
+      `<link rel="stylesheet" href="${outputCssPath}">`
+    );
+    
     htmlContent = fixUnclosedSelfClosingTags(htmlContent);
 
     htmlContent = processAnchorHrefs(htmlContent, outputPath); // 传入当前 XHTML 文件的路径
@@ -121,14 +132,16 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     htmlContent = replaceAlignAttributes(htmlContent);
     htmlContent = convertScriptToCodeBlock(htmlContent); // 将 <script> 转换为 <pre><code> 块
 
-    // 计算 style.css 文件相对于 XHTML 文件的相对路径
-    const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
-    const styleCssPath = path.join(relativePath, "style.css").replace(/\\/g, "/");
-    // 在 <head> 中引入 style.css
-    htmlContent = htmlContent.replace(
-      /<head>/i,
-      `<head>\n<link rel="stylesheet" type="text/css" href="${styleCssPath}"/>`
-    );
+
+    // // 计算 output.css 文件相对于 XHTML 文件的相对路径
+    // const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
+    // const outputCssPath = path.join(relativePath, "output.css").replace(/\\/g, "/");
+
+    // // 在 <head> 中引入 output.css,使用动态生成的相对路径
+    // htmlContent = htmlContent.replace(
+    //   /<head>/i,
+    //   `<head>\n<link rel="stylesheet" type="text/css" href="${outputCssPath}"/>`
+    // );
 
     await fs.promises.writeFile(outputPath, htmlContent, "utf-8");
   } catch (error) {
@@ -205,8 +218,8 @@ function generateContentOpf(
   let spineItems = "";
   const addedFiles = new Set();
 
-  // 添加 style.css 文件到清单中
-  manifestItems += `<item id="style.css" href="style.css" media-type="text/css"/>\n`;
+  // 添加 output.css 文件到清单中
+  manifestItems += `<item id="output.css" href="output.css" media-type="text/css"/>\n`;
 
   htmlFiles.forEach((file, index) => {
     const id = `item${index + 1}`;
@@ -672,28 +685,6 @@ async function processImages(zip, epubDir, htmlFiles) {
   return imageFiles;
 }
 
-async function createStyleCss(epubDir) {
-  const cssContent = `
-    .text-center {
-      text-align: center;
-    }
-
-    .text-left {
-      text-align: left;
-    }
-
-    .text-right {
-      text-align: right;
-    }
-
-    /* 其他公共样式 */
-  `;
-
-  const styleCssPath = path.join(epubDir, "style.css");
-  await fs.promises.writeFile(styleCssPath, cssContent, "utf-8");
-  return styleCssPath;
-}
-
 async function createEpub(
   markdownDir,
   epubPath,
@@ -712,10 +703,10 @@ async function createEpub(
   await ensureDirectoryExists(epubDir);
 
   try {
-    // 创建 style.css 文件
-    const styleCssPath = await createStyleCss(epubDir);
-    // 将 style.css 文件添加到 EPUB 中
-    zip.file("OEBPS/style.css", fs.readFileSync(styleCssPath));
+    // 生成优化后的 Tailwind CSS 文件
+    const outputCssPath = await generateTailwindCss(epubDir);
+    // 将生成的 CSS 文件添加到 EPUB 中
+    zip.file("OEBPS/output.css", fs.readFileSync(outputCssPath));
 
     console.log("处理Markdown文件...");
     const totalFiles = countMarkdownFiles(markdownDir);
