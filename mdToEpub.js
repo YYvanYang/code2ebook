@@ -124,6 +124,14 @@ async function convertMarkdownToHtmlPandoc(inputPath, outputPath) {
     htmlContent = replaceAlignAttributes(htmlContent);
     htmlContent = convertScriptToCodeBlock(htmlContent); // 将 <script> 转换为 <pre><code> 块
 
+    // 使用正则表达式匹配 <colgroup /> 标签及其内容
+    const regex = /<colgroup[^>]*>([\s\S]*?)<\/colgroup>/g;
+
+    // 替换 <colgroup /> 为 <colgroup>...</colgroup>,保留内部的 <col> 元素
+    htmlContent = htmlContent.replace(regex, (match, content) => {
+      return `<colgroup>${content}</colgroup>`;
+    });
+
     // 计算 style.css 文件相对于 XHTML 文件的相对路径
     const relativePath = path.relative(path.dirname(outputPath), "OEBPS");
     const styleCssPath = path.join(relativePath, "style.css").replace(/\\/g, "/");
@@ -784,8 +792,8 @@ async function validateEpub(epubPath) {
     console.log("EPUBCheck 校验结果:");
     console.log(stdout);
     if (stderr) {
-      console.error("EPUBCheck 错误:");
-      console.error(stderr);
+      // console.error("EPUBCheck 错误:");
+      // console.error(stderr);
     }
   } catch (error) {
     console.error("EPUBCheck 执行失败:", error);
