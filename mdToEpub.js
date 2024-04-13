@@ -789,9 +789,9 @@ async function validateEpub(epubPath) {
   }
 }
 
-const markdownDir = "markdown/rolldown";
-const repoName = "rolldown";
-const author = "rolldown";
+const markdownDir = "markdown/zed";
+const repoName = "zed";
+const author = "zed";
 const timestamp = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
 const epubPath = `${repoName}_${timestamp}.epub`;
 const metadata = {

@@ -25,7 +25,7 @@ function removeDirectory(directory) {
 function cloneGitHubRepo(repoUrl, localDir) {
   ensureDirExists(path.dirname(localDir));
   removeDirectory(localDir);
-  execSync(`git clone ${repoUrl} "${localDir}"`);
+  execSync(`git clone --depth 1 ${repoUrl} "${localDir}"`);
   return path.resolve(localDir);
 }
 
