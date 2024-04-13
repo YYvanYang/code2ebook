@@ -77,6 +77,7 @@ function processFiles(
         file === "test" ||
         file === "tests" ||
         file === "__tests__" ||
+        file === "__mocks__" ||
         file === "example" ||
         file === "examples" ||
         file === "fixtures" ||
